@@ -24,7 +24,7 @@ function ImagePrize({ prize }) {
     w = h * aspect
   }
   const special = prize.rarity !== 'common'
-  const glow = prize.rarity === 'secret' ? '#ffd36a' : '#c9b2ff'
+  const glow = prize.rarity === 'secret' ? '#ffc21a' : '#3fd5ff'
 
   useFrame((s) => {
     const t = s.clock.elapsedTime + seed.current

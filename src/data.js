@@ -33,9 +33,17 @@ export function slotPosition(row, col) {
 //  Collectibles hiding inside the boxes (the silhouettes on the box side panel)
 // ─────────────────────────────────────────────────────────────
 export const RARITY = {
-  common: { label: 'Common', color: '#ff8fb8', stars: 1 },
-  rare: { label: 'Rare', color: '#a98bff', stars: 2 },
-  secret: { label: 'Secret', color: '#ffb92e', stars: 3 },
+  common: { label: 'Common', color: '#9fb3c8', stars: 1 }, // steel
+  rare: { label: 'Rare', color: '#3fd5ff', stars: 2 }, // electric cyan
+  secret: { label: 'Secret', color: '#ffc21a', stars: 3 }, // gold
+}
+
+/** colour used for lights / flash / banners per outcome (an empty box is dull grey) */
+export const FX_COLOR = {
+  empty: '#8895a5',
+  common: '#9fb3c8',
+  rare: '#3fd5ff',
+  secret: '#ffc21a',
 }
 
 export const FIGURES = [
@@ -58,49 +66,47 @@ export const FIGURES = [
 export const figureById = Object.fromEntries(FIGURES.map((f) => [f.id, f]))
 
 // ─────────────────────────────────────────────────────────────
-//  Default prize pool (editable at runtime from the "Prizes" panel)
+//  Prize pool (starts empty, edited at runtime from the "Prizes" panel)
 //   total  = how many pieces exist      left   = how many are still in stock
-//   weight = relative drop chance       image  = custom uploaded picture (data URL) or null
+//   chance = % chance a box holds it    image  = custom uploaded picture (data URL) or null
 //   builtin = id of a procedural 3D figure used when no image is uploaded
 // ─────────────────────────────────────────────────────────────
-const DEFAULT_QTY = { bearie: 2, bunnie: 2, kitty: 2, pupper: 2, mochi: 2, varsity: 1, gold: 1 }
-const DEFAULT_WEIGHT = { bearie: 18, bunnie: 18, kitty: 18, pupper: 18, mochi: 18, varsity: 8, gold: 2 }
+// The pool starts EMPTY – prizes are added from the admin panel.
+export const DEFAULT_PRIZES = []
 
-export const DEFAULT_PRIZES = FIGURES.map((f) => ({
-  id: f.id,
-  name: f.name,
-  rarity: f.rarity,
-  builtin: f.id,
-  image: null,
-  total: DEFAULT_QTY[f.id],
-  left: DEFAULT_QTY[f.id],
-  weight: DEFAULT_WEIGHT[f.id],
-}))
+/** only prizes that are still in stock can drop */
+const live = (p) => p.left > 0 && p.chance > 0
 
-/** chance (%) of each prize among the ones still in stock */
+/** each prize has its OWN chance (%) per box – they are independent, so they don't have to add up to 100 */
 export function prizeOdds(prizes) {
-  const live = prizes.filter((p) => p.left > 0 && p.weight > 0)
-  const sum = live.reduce((a, p) => a + p.weight, 0)
   const out = {}
   prizes.forEach((p) => {
-    out[p.id] = sum && p.left > 0 && p.weight > 0 ? (p.weight / sum) * 100 : 0
+    out[p.id] = live(p) ? Math.min(100, p.chance) : 0
   })
   return out
 }
 
-/** weighted random draw among prizes that are still in stock */
+/**
+ * Roll one box – every prize in stock is judged by its OWN chance (%).
+ *  • total ≤ 100 %  → each prize drops with exactly the % you typed, nobody steals from anybody.
+ *  • total > 100 %  → each prize rolls independently; when several hit at once the rarer one
+ *    (lower %) wins, so higher-% prizes drop a little less often than typed.
+ * No hit = nothing in the box.
+ */
 export function drawPrize(prizes) {
-  const stock = prizes.filter((p) => p.left > 0)
-  if (!stock.length) return null
-  const weighted = stock.filter((p) => p.weight > 0)
-  const list = weighted.length ? weighted : stock
-  const sum = list.reduce((a, p) => a + (weighted.length ? p.weight : 1), 0)
-  let r = Math.random() * sum
-  for (const p of list) {
-    r -= weighted.length ? p.weight : 1
-    if (r <= 0) return p
+  const pool = prizes.filter(live)
+  const sum = pool.reduce((a, p) => a + p.chance, 0)
+  if (sum <= 100) {
+    let r = Math.random() * 100
+    for (const p of pool) {
+      r -= p.chance
+      if (r < 0) return p
+    }
+    return null
   }
-  return list[list.length - 1]
+  const hits = pool.filter((p) => Math.random() * 100 < p.chance)
+  if (!hits.length) return null
+  return hits.reduce((a, b) => (b.chance < a.chance ? b : a))
 }
 
 // Camera / focus pose used while a box is being opened

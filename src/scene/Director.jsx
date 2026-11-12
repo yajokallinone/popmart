@@ -5,17 +5,19 @@ import * as THREE from 'three'
 import { FOCUS_BOX, FOCUS_CAM, FOCUS_TARGET } from '../data'
 import { useStore } from '../store'
 import { registry } from './registry'
-import { LID_AJAR } from './MysteryBox'
 
 const FOCUS_SCALE = 1.3
 
 
-// drei only calls controls.update() while controls.enabled is true, and update() is what keeps the
-// camera looking at controls.target – so we lock user input instead of disabling the controls.
-function lock(controls, on) {
-  if (!controls) return
-  controls.enableRotate = !on
-  controls.enableZoom = !on
+// How dramatic each outcome is. The longer / harder the anticipation, the rarer the prize.
+//   shake  = number of wobbles    amp = wobble angle (rad)    dur = seconds per wobble
+//   swell  = box grows by this factor while charging up       hold = suspense pause before the pop
+//   punch  = camera dolly-in on the pop (world units)         camShake = camera tremble amplitude
+const FX = {
+  empty: { shake: 3, amp: 0.07, dur: 0.07, swell: 1, hold: 0, punch: 0, camShake: 0 },
+  common: { shake: 5, amp: 0.16, dur: 0.055, swell: 1, hold: 0, punch: 0, camShake: 0 },
+  rare: { shake: 9, amp: 0.2, dur: 0.05, swell: 1.08, hold: 0.1, punch: 0.9, camShake: 0 },
+  secret: { shake: 15, amp: 0.27, dur: 0.045, swell: 1.16, hold: 0.35, punch: 1.8, camShake: 0.09 },
 }
 
 /**
@@ -37,13 +39,12 @@ export default function Director() {
       const o = reg.outer.current
       const lid = reg.lid.current
       const fig = reg.figure.current
-      const revisit = !!st().opened[id]
+      const fx = FX[st().fxRarity] || FX.common
 
       saved = {
         cam: camera.position.clone(),
         target: controls ? controls.target.clone() : new THREE.Vector3(...FOCUS_TARGET),
       }
-      lock(controls, true)
 
       const local = new THREE.Vector3(...FOCUS_BOX).sub(reg.home)
       fig.scale.setScalar(0.001)
@@ -66,23 +67,37 @@ export default function Director() {
         // keep a lid that was already ajar from poking into the camera
         .to(lid.rotation, { x: 0, duration: 0.3, ease: 'power2.out' }, 0.2)
 
-      // 3 ─ short anticipation shake
+      // 3 ─ anticipation: the rarer the prize, the longer and harder the box shakes
+      const shakeTime = fx.dur * (fx.shake + 1)
       tl.call(() => st().setPhase('shaking'))
-      if (!revisit) {
-        tl.to(o.rotation, { z: 0.16, duration: 0.055, repeat: 5, yoyo: true, ease: 'sine.inOut' })
-          .to(o.rotation, { z: 0, duration: 0.06, ease: 'power2.out' })
+      tl.to(o.rotation, { z: fx.amp, duration: fx.dur, repeat: fx.shake, yoyo: true, ease: 'sine.inOut' })
+      if (fx.swell > 1) {
+        const k = FOCUS_SCALE * fx.swell
+        tl.to(o.scale, { x: k, y: k, z: k, duration: shakeTime, ease: 'power1.in' }, '<')
       }
+      tl.to(o.rotation, { z: 0, duration: 0.06, ease: 'power2.out' })
+      if (fx.hold) tl.to({}, { duration: fx.hold }) // suspense…
 
       // 4 ─ pop! the lid flips open and the prize rises out
-      tl.call(() => {
-        st().setPhase('opening')
-        st().reveal()
-      })
-        .to(lid.rotation, { x: -2.15, duration: 0.3, ease: 'back.out(2)' }, '<')
-        .to(o.position, { y: local.y - 0.55, duration: 0.4, ease: 'power3.out' }, '<')
-        .to(fig.scale, { x: 1, y: 1, z: 1, duration: 0.6, ease: 'elastic.out(1,0.6)' }, '<0.05')
-        .to(fig.position, { y: 0.62, duration: 0.45, ease: 'back.out(1.6)' }, '<')
-        .call(() => st().setPhase('revealed'), null, '<0.3')
+      tl.addLabel('pop')
+        .call(() => {
+          st().setPhase('opening')
+          st().reveal()
+        }, null, 'pop')
+        .to(lid.rotation, { x: -2.15, duration: 0.3, ease: 'back.out(2)' }, 'pop')
+        .to(o.scale, { x: FOCUS_SCALE, y: FOCUS_SCALE, z: FOCUS_SCALE, duration: 0.25, ease: 'back.out(3)' }, 'pop')
+        .to(o.position, { y: local.y - 0.55, duration: 0.4, ease: 'power3.out' }, 'pop')
+        .to(fig.scale, { x: 1, y: 1, z: 1, duration: 0.6, ease: 'elastic.out(1,0.6)' }, 'pop+=0.05')
+        .to(fig.position, { y: 0.62, duration: 0.45, ease: 'back.out(1.6)' }, 'pop+=0.05')
+        .call(() => st().setPhase('revealed'), null, 'pop+=0.35')
+      if (fx.punch) {
+        tl.to(camera.position, { z: FOCUS_CAM[2] - fx.punch, duration: 0.1, ease: 'power2.out' }, 'pop')
+          .to(camera.position, { z: FOCUS_CAM[2], duration: 0.7, ease: 'elastic.out(1,0.5)' }, 'pop+=0.1')
+      }
+      if (fx.camShake) {
+        tl.to(camera.position, { x: FOCUS_CAM[0] + fx.camShake, duration: 0.04, repeat: 11, yoyo: true, ease: 'none' }, 'pop')
+          .to(camera.position, { x: FOCUS_CAM[0], duration: 0.1 }, 'pop+=0.5')
+      }
     }
 
     const close = () => {
@@ -97,14 +112,13 @@ export default function Director() {
       tl?.kill()
       tl = gsap.timeline({
         onComplete: () => {
-          lock(controls, false)
           fig.scale.setScalar(0.001)
           st().finishClose()
         },
       })
       tl.to(fig.scale, { x: 0.001, y: 0.001, z: 0.001, duration: 0.25, ease: 'back.in(2)' }, 0)
         .to(fig.position, { y: 0.3, duration: 0.25, ease: 'power2.in' }, 0)
-        .to(lid.rotation, { x: LID_AJAR, duration: 0.3, ease: 'power2.inOut' }, 0.1)
+        .to(lid.rotation, { x: 0, duration: 0.3, ease: 'power2.inOut' }, 0.1)
         .to(o.rotation, { x: 0, y: 0, z: 0, duration: 0.55, ease: 'power3.inOut' }, 0.2)
         .to(o.scale, { x: 1, y: 1, z: 1, duration: 0.55, ease: 'power3.inOut' }, 0.2)
         .to(o.position, { x: 0, y: 0.12, z: 1.25, duration: 0.5, ease: 'power3.inOut' }, 0.2)

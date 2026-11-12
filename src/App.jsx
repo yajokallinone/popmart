@@ -5,10 +5,10 @@ import Overlay from './ui/Overlay'
 function Bokeh() {
   const dots = [
     ['8%', '70%', 180, '#ffffff', 0.55, '0s'],
-    ['78%', '12%', 240, '#ffd0e8', 0.5, '1.4s'],
-    ['88%', '72%', 200, '#d8c8ff', 0.5, '0.7s'],
-    ['20%', '18%', 140, '#cfe6ff', 0.55, '2.1s'],
-    ['50%', '88%', 220, '#ffe3f0', 0.6, '1s'],
+    ['78%', '12%', 240, '#3fd5ff', 0.5, '1.4s'],
+    ['88%', '72%', 200, '#ffc21a', 0.5, '0.7s'],
+    ['20%', '18%', 140, '#5fb0ff', 0.55, '2.1s'],
+    ['50%', '88%', 220, '#3fd5ff', 0.6, '1s'],
   ]
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -31,7 +31,7 @@ export default function App() {
         <Scene />
       </div>
       <Overlay />
-      <Loader containerStyles={{ background: 'rgba(255,225,240,0.9)' }} innerStyles={{ background: '#ffd0e6' }} barStyles={{ background: '#ff5fa2' }} dataStyles={{ color: '#8c1d40', fontFamily: 'Fredoka, sans-serif' }} />
+      <Loader containerStyles={{ background: 'rgba(13,27,42,0.95)' }} innerStyles={{ background: '#33465c' }} barStyles={{ background: '#ffc21a' }} dataStyles={{ color: '#ffc21a', fontFamily: 'Fredoka, sans-serif' }} />
     </div>
   )
 }

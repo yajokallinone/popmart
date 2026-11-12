@@ -8,16 +8,29 @@ export function heartShape(s = 1) {
   return sh
 }
 
-export function starShape(R = 1, r = 0.45, n = 5) {
+/** Gear outline (trapezoid teeth + centre hole) in a unit of R = tip radius */
+export function gearShape(R = 1, teeth = 8, hole = 0.3) {
+  const root = R * 0.74
+  const step = (Math.PI * 2) / teeth
   const sh = new THREE.Shape()
-  for (let i = 0; i < n * 2; i++) {
-    const rad = i % 2 === 0 ? R : r
-    const a = Math.PI / 2 + (i * Math.PI) / n
-    const x = Math.cos(a) * rad
-    const y = Math.sin(a) * rad
-    i ? sh.lineTo(x, y) : sh.moveTo(x, y)
+  for (let i = 0; i < teeth; i++) {
+    const a = i * step
+    const pts = [
+      [root, a - step * 0.3],
+      [R, a - step * 0.17],
+      [R, a + step * 0.17],
+      [root, a + step * 0.3],
+    ]
+    pts.forEach(([rad, ang], k) => {
+      const x = Math.cos(ang) * rad
+      const y = Math.sin(ang) * rad
+      i === 0 && k === 0 ? sh.moveTo(x, y) : sh.lineTo(x, y)
+    })
   }
   sh.closePath()
+  const h = new THREE.Path()
+  h.absarc(0, 0, R * hole, 0, Math.PI * 2, true)
+  sh.holes.push(h)
   return sh
 }
 

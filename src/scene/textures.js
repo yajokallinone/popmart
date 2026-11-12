@@ -28,24 +28,51 @@ function rr(ctx, x, y, w, h, r) {
   ctx.closePath()
 }
 
-function star(ctx, cx, cy, R, r, n = 5, rot = -Math.PI / 2) {
+function gear(ctx, cx, cy, R, teeth = 8, rot = 0, hole = 0.3) {
+  const root = R * 0.74
+  const step = (Math.PI * 2) / teeth
   ctx.beginPath()
-  for (let i = 0; i < n * 2; i++) {
-    const rad = i % 2 === 0 ? R : r
-    const a = rot + (i * Math.PI) / n
-    const x = cx + Math.cos(a) * rad
-    const y = cy + Math.sin(a) * rad
+  for (let i = 0; i < teeth; i++) {
+    const a = rot + i * step
+    const pts = [
+      [root, a - step * 0.3],
+      [R, a - step * 0.17],
+      [R, a + step * 0.17],
+      [root, a + step * 0.3],
+    ]
+    pts.forEach(([rad, ang], k) => {
+      const x = cx + Math.cos(ang) * rad
+      const y = cy + Math.sin(ang) * rad
+      i === 0 && k === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
+    })
+  }
+  ctx.closePath()
+  ctx.moveTo(cx + R * hole, cy)
+  ctx.arc(cx, cy, R * hole, 0, Math.PI * 2, true)
+}
+
+function hex(ctx, cx, cy, r, rot = 0) {
+  ctx.beginPath()
+  for (let i = 0; i < 6; i++) {
+    const a = rot + (i * Math.PI) / 3
+    const x = cx + Math.cos(a) * r
+    const y = cy + Math.sin(a) * r
     i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)
   }
   ctx.closePath()
 }
 
-function heart(ctx, cx, cy, s) {
+function bolt(ctx, cx, cy, r) {
+  hex(ctx, cx, cy, r, Math.PI / 6)
+  ctx.fillStyle = '#b9c7d6'
+  ctx.fill()
+  ctx.strokeStyle = '#4a5868'
+  ctx.lineWidth = 2
+  ctx.stroke()
   ctx.beginPath()
-  ctx.moveTo(cx, cy + s * 0.9)
-  ctx.bezierCurveTo(cx - s * 1.6, cy - s * 0.1, cx - s * 0.9, cy - s * 1.2, cx, cy - s * 0.35)
-  ctx.bezierCurveTo(cx + s * 0.9, cy - s * 1.2, cx + s * 1.6, cy - s * 0.1, cx, cy + s * 0.9)
-  ctx.closePath()
+  ctx.arc(cx, cy, r * 0.42, 0, Math.PI * 2)
+  ctx.fillStyle = '#5d6c7c'
+  ctx.fill()
 }
 
 /** Re-render canvas textures once the web font is ready */
@@ -67,126 +94,151 @@ export function useFontsReady() {
   return ready
 }
 
+const YELLOW = '#ffc21a'
+const CYAN = '#3fd5ff'
+
 export function signTexture() {
   const [c, ctx] = make(1024, 256)
-  const g = ctx.createLinearGradient(0, 0, 1024, 256)
-  g.addColorStop(0, '#ff8fbd')
-  g.addColorStop(1, '#b99bff')
+  // hazard-stripe frame
+  ctx.save()
+  rr(ctx, 0, 0, 1024, 256, 36)
+  ctx.clip()
+  ctx.fillStyle = '#10151c'
+  ctx.fillRect(0, 0, 1024, 256)
+  ctx.fillStyle = YELLOW
+  for (let x = -300; x < 1400; x += 64) {
+    ctx.beginPath()
+    ctx.moveTo(x, 256)
+    ctx.lineTo(x + 32, 256)
+    ctx.lineTo(x + 32 + 256, 0)
+    ctx.lineTo(x + 256, 0)
+    ctx.closePath()
+    ctx.fill()
+  }
+  ctx.restore()
+  // dark steel panel
+  const g = ctx.createLinearGradient(0, 0, 0, 256)
+  g.addColorStop(0, '#26364a')
+  g.addColorStop(1, '#0f1822')
   ctx.fillStyle = g
-  rr(ctx, 0, 0, 1024, 256, 120)
+  rr(ctx, 16, 16, 992, 224, 24)
   ctx.fill()
-  ctx.fillStyle = '#fff6fb'
-  rr(ctx, 16, 16, 992, 224, 108)
-  ctx.fill()
-  // soft inner border
-  ctx.strokeStyle = 'rgba(255,143,189,0.45)'
-  ctx.lineWidth = 4
-  ctx.setLineDash([2, 14])
-  ctx.lineCap = 'round'
-  rr(ctx, 34, 34, 956, 188, 94)
+  ctx.strokeStyle = 'rgba(63,213,255,0.55)'
+  ctx.lineWidth = 3
+  rr(ctx, 30, 30, 964, 196, 14)
   ctx.stroke()
-  ctx.setLineDash([])
 
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
-  let fs = 142
+  let fs = 138
   ctx.font = `700 ${fs}px ${FONT}`
-  while (ctx.measureText('MYSTERY BOX').width > 740 && fs > 60) {
+  while (ctx.measureText('ENG BOX').width > 700 && fs > 60) {
     fs -= 4
     ctx.font = `700 ${fs}px ${FONT}`
   }
-  const tg = ctx.createLinearGradient(180, 0, 850, 0)
-  tg.addColorStop(0, '#ff4f9a')
-  tg.addColorStop(1, '#8f63ff')
-  ctx.shadowColor = 'rgba(255,120,180,0.55)'
-  ctx.shadowBlur = 18
+  const tg = ctx.createLinearGradient(0, 70, 0, 190)
+  tg.addColorStop(0, '#fff1b3')
+  tg.addColorStop(1, YELLOW)
+  ctx.shadowColor = 'rgba(255,194,26,0.6)'
+  ctx.shadowBlur = 22
   ctx.fillStyle = tg
-  ctx.fillText('MYSTERY BOX', 512, 138)
+  ctx.fillText('ENG BOX', 512, 134)
   ctx.shadowBlur = 0
-  // sparkles
-  ctx.fillStyle = '#ffd34d'
-  star(ctx, 92, 128, 26, 10, 4)
+  // gears + rivets
+  ctx.fillStyle = CYAN
+  gear(ctx, 104, 118, 42, 8, 0.2)
   ctx.fill()
-  star(ctx, 932, 128, 26, 10, 4)
+  gear(ctx, 160, 180, 22, 8, 0.1)
+  ctx.fillStyle = YELLOW
   ctx.fill()
-  ctx.fillStyle = '#ff9ccc'
-  heart(ctx, 150, 64, 11)
+  ctx.fillStyle = CYAN
+  gear(ctx, 920, 138, 42, 8, 0.6)
   ctx.fill()
-  heart(ctx, 874, 192, 11)
+  gear(ctx, 864, 76, 22, 8, 0.3)
+  ctx.fillStyle = YELLOW
   ctx.fill()
+  ;[[52, 52], [972, 52], [52, 204], [972, 204]].forEach(([x, y]) => bolt(ctx, x, y, 9))
   return toTexture(c)
 }
 
 export function plaqueTexture() {
   const [c, ctx] = make(1024, 128)
   const g = ctx.createLinearGradient(0, 0, 1024, 0)
-  g.addColorStop(0, '#fff3f8')
-  g.addColorStop(1, '#f2e8ff')
+  g.addColorStop(0, '#1a2432')
+  g.addColorStop(1, '#2b3b50')
   ctx.fillStyle = g
-  rr(ctx, 0, 0, 1024, 128, 64)
+  rr(ctx, 0, 0, 1024, 128, 22)
   ctx.fill()
+  ctx.strokeStyle = YELLOW
+  ctx.lineWidth = 5
+  rr(ctx, 6, 6, 1012, 116, 17)
+  ctx.stroke()
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.font = `700 62px ${FONT}`
-  ctx.fillStyle = '#8c1d40'
+  ctx.fillStyle = YELLOW
   ctx.fillText('ENG CMU', 270, 68)
-  ctx.fillStyle = '#c9a0d8'
-  star(ctx, 480, 64, 16, 6, 4)
+  ctx.fillStyle = CYAN
+  gear(ctx, 480, 64, 26, 8, 0)
   ctx.fill()
   ctx.font = `600 58px ${FONT}`
-  ctx.fillStyle = '#b25a86'
+  ctx.fillStyle = '#dff3ff'
   ctx.fillText('OPEN HOUSE 2026', 745, 68)
   return toTexture(c)
 }
 
 export function plateTexture(n, opened) {
   const [c, ctx] = make(256, 72)
-  const g = ctx.createLinearGradient(0, 0, 256, 0)
-  if (opened) {
-    g.addColorStop(0, '#d7ffe9')
-    g.addColorStop(1, '#bff2dc')
-  } else {
-    g.addColorStop(0, '#ffffff')
-    g.addColorStop(1, '#ffe9f3')
-  }
-  ctx.fillStyle = g
-  rr(ctx, 2, 2, 252, 68, 34)
+  ctx.fillStyle = opened ? '#0f3a33' : '#1c2735'
+  rr(ctx, 2, 2, 252, 68, 14)
   ctx.fill()
   ctx.lineWidth = 4
-  ctx.strokeStyle = opened ? '#6fd4a8' : '#ff9ec7'
-  rr(ctx, 4, 4, 248, 64, 32)
+  ctx.strokeStyle = opened ? '#3ddc97' : YELLOW
+  rr(ctx, 4, 4, 248, 64, 12)
   ctx.stroke()
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.font = `700 40px ${FONT}`
-  ctx.fillStyle = opened ? '#2f9a6f' : '#c4306f'
+  ctx.fillStyle = opened ? '#7dffc4' : YELLOW
   ctx.fillText(`${opened ? '✓ ' : ''}${String(n).padStart(2, '0')}`, 128, 40)
   return toTexture(c)
 }
 
+/** blueprint paper: grid + faint outlined gears */
 export function backWallTexture() {
   const [c, ctx] = make(1024, 1024)
   const g = ctx.createLinearGradient(0, 0, 0, 1024)
-  g.addColorStop(0, '#f3e6ff')
-  g.addColorStop(1, '#e4d3ff')
+  g.addColorStop(0, '#14456f')
+  g.addColorStop(1, '#0b2b49')
   ctx.fillStyle = g
   ctx.fillRect(0, 0, 1024, 1024)
-  // polka stars + hearts
+  for (let p = 0; p <= 1024; p += 32) {
+    const major = p % 128 === 0
+    ctx.strokeStyle = major ? 'rgba(140,215,255,0.32)' : 'rgba(140,215,255,0.13)'
+    ctx.lineWidth = major ? 2 : 1
+    ctx.beginPath()
+    ctx.moveTo(p, 0)
+    ctx.lineTo(p, 1024)
+    ctx.moveTo(0, p)
+    ctx.lineTo(1024, p)
+    ctx.stroke()
+  }
   let seed = 7
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
-  for (let i = 0; i < 70; i++) {
-    const x = rnd() * 1024
-    const y = rnd() * 1024
-    ctx.globalAlpha = 0.5 + rnd() * 0.4
-    ctx.fillStyle = i % 3 === 0 ? '#ffffff' : i % 3 === 1 ? '#ffd0e6' : '#cfe8ff'
-    if (i % 4 === 0) {
-      heart(ctx, x, y, 9 + rnd() * 8)
-    } else {
-      star(ctx, x, y, 10 + rnd() * 12, 4 + rnd() * 4, 4, rnd() * 3)
-    }
-    ctx.fill()
+  ctx.lineWidth = 3
+  for (let i = 0; i < 9; i++) {
+    const x = 90 + rnd() * 840
+    const y = 90 + rnd() * 840
+    const R = 40 + rnd() * 60
+    ctx.strokeStyle = `rgba(170,230,255,${0.35 + rnd() * 0.25})`
+    gear(ctx, x, y, R, 10, rnd() * 3, 0.32)
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.arc(x, y, R * 0.55, 0, Math.PI * 2)
+    ctx.setLineDash([6, 8])
+    ctx.stroke()
+    ctx.setLineDash([])
   }
-  ctx.globalAlpha = 1
   const t = toTexture(c)
   t.wrapS = t.wrapT = THREE.RepeatWrapping
   return t
@@ -208,9 +260,9 @@ export function glowTexture() {
 export function shadowTexture() {
   const [c, ctx] = make(128, 128)
   const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64)
-  g.addColorStop(0, 'rgba(80,20,60,0.55)')
-  g.addColorStop(0.6, 'rgba(80,20,60,0.2)')
-  g.addColorStop(1, 'rgba(80,20,60,0)')
+  g.addColorStop(0, 'rgba(5,15,30,0.55)')
+  g.addColorStop(0.6, 'rgba(5,15,30,0.2)')
+  g.addColorStop(1, 'rgba(5,15,30,0)')
   ctx.fillStyle = g
   ctx.fillRect(0, 0, 128, 128)
   return new THREE.CanvasTexture(c)

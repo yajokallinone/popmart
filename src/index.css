@@ -21,9 +21,11 @@ body {
   overscroll-behavior: none;
   -webkit-tap-highlight-color: transparent;
   background:
-    radial-gradient(900px 600px at 15% 10%, rgba(255, 255, 255, 0.9), transparent 60%),
-    radial-gradient(900px 700px at 90% 85%, rgba(200, 170, 255, 0.55), transparent 60%),
-    linear-gradient(160deg, #ffe1ef 0%, #f6e5ff 50%, #dde8ff 100%);
+    radial-gradient(900px 600px at 15% 10%, rgba(63, 213, 255, 0.22), transparent 60%),
+    radial-gradient(900px 700px at 90% 85%, rgba(255, 194, 26, 0.16), transparent 60%),
+    repeating-linear-gradient(0deg, rgba(140, 215, 255, 0.06) 0 1px, transparent 1px 40px),
+    repeating-linear-gradient(90deg, rgba(140, 215, 255, 0.06) 0 1px, transparent 1px 40px),
+    linear-gradient(160deg, #0d1b2a 0%, #14283d 50%, #0a141f 100%);
 }
 
 canvas {
@@ -58,7 +60,7 @@ canvas {
 .animate-float-y { animation: float-y 6s ease-in-out infinite; }
 .animate-tip-in { animation: tip-in 0.14s ease-out both; }
 .shine-text {
-  background: linear-gradient(100deg, #ff5fa2 20%, #fff 45%, #9b6bff 70%);
+  background: linear-gradient(100deg, #ffc21a 20%, #fff 45%, #3fd5ff 70%);
   background-size: 200% 100%;
   -webkit-background-clip: text;
   background-clip: text;
@@ -68,3 +70,27 @@ canvas {
 
 /* drei <Loader/> */
 [class*="_dataContainer"] { font-family: var(--font-display); }
+
+/* ── hand cursor: big, white with a yellow halo; turns yellow over anything clickable ── */
+:root {
+  --hand: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'%3E%3Cpath d='M17 4.5c-2.2 0-3.5 1.6-3.5 3.6v17.4l-3.2-3.1c-1.6-1.5-4-1.2-5 .6-.8 1.4-.5 2.6.7 4l8.6 10.6c2.5 3.1 5.4 4.7 9.2 4.7h6.4c5.6 0 9.2-3.7 9.2-9.6V24.6c0-2.2-1.4-3.7-3.4-3.7-.9 0-1.7.3-2.3.9-.4-1.9-1.8-3-3.6-3-1.1 0-2 .4-2.7 1.1-.6-1.5-1.9-2.5-3.5-2.5-.7 0-1.3.2-1.8.5V8.1c0-2-1.5-3.6-3.5-3.6z' fill='none' stroke='%23ffc21a' stroke-width='7.5' stroke-linejoin='round'/%3E%3Cpath d='M17 4.5c-2.2 0-3.5 1.6-3.5 3.6v17.4l-3.2-3.1c-1.6-1.5-4-1.2-5 .6-.8 1.4-.5 2.6.7 4l8.6 10.6c2.5 3.1 5.4 4.7 9.2 4.7h6.4c5.6 0 9.2-3.7 9.2-9.6V24.6c0-2.2-1.4-3.7-3.4-3.7-.9 0-1.7.3-2.3.9-.4-1.9-1.8-3-3.6-3-1.1 0-2 .4-2.7 1.1-.6-1.5-1.9-2.5-3.5-2.5-.7 0-1.3.2-1.8.5V8.1c0-2-1.5-3.6-3.5-3.6z' fill='%23ffffff' stroke='%2310151c' stroke-width='2.6' stroke-linejoin='round'/%3E%3Cpath d='M24.5 29v7M30 29v7M35.5 29v7' stroke='%2310151c' stroke-width='2' stroke-linecap='round' opacity='.35'/%3E%3C/svg%3E") 17 4, pointer;
+  --hand-hot: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'%3E%3Cpath d='M17 4.5c-2.2 0-3.5 1.6-3.5 3.6v17.4l-3.2-3.1c-1.6-1.5-4-1.2-5 .6-.8 1.4-.5 2.6.7 4l8.6 10.6c2.5 3.1 5.4 4.7 9.2 4.7h6.4c5.6 0 9.2-3.7 9.2-9.6V24.6c0-2.2-1.4-3.7-3.4-3.7-.9 0-1.7.3-2.3.9-.4-1.9-1.8-3-3.6-3-1.1 0-2 .4-2.7 1.1-.6-1.5-1.9-2.5-3.5-2.5-.7 0-1.3.2-1.8.5V8.1c0-2-1.5-3.6-3.5-3.6z' fill='none' stroke='%23ffc21a' stroke-width='7.5' stroke-linejoin='round'/%3E%3Cpath d='M17 4.5c-2.2 0-3.5 1.6-3.5 3.6v17.4l-3.2-3.1c-1.6-1.5-4-1.2-5 .6-.8 1.4-.5 2.6.7 4l8.6 10.6c2.5 3.1 5.4 4.7 9.2 4.7h6.4c5.6 0 9.2-3.7 9.2-9.6V24.6c0-2.2-1.4-3.7-3.4-3.7-.9 0-1.7.3-2.3.9-.4-1.9-1.8-3-3.6-3-1.1 0-2 .4-2.7 1.1-.6-1.5-1.9-2.5-3.5-2.5-.7 0-1.3.2-1.8.5V8.1c0-2-1.5-3.6-3.5-3.6z' fill='%23ffd23f' stroke='%2310151c' stroke-width='2.6' stroke-linejoin='round'/%3E%3Cpath d='M24.5 29v7M30 29v7M35.5 29v7' stroke='%2310151c' stroke-width='2' stroke-linecap='round' opacity='.35'/%3E%3C/svg%3E") 17 4, pointer;
+}
+html,
+body,
+canvas {
+  cursor: var(--hand);
+}
+button,
+select,
+label,
+a,
+.cursor-pointer,
+body.cursor-hot,
+body.cursor-hot canvas {
+  cursor: var(--hand-hot);
+}
+input[type="number"],
+input[type="text"] {
+  cursor: text;
+}

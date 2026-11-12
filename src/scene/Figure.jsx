@@ -228,9 +228,9 @@ export default function Figure({ fig }) {
           <Gear />
         </group>
       )}
-      {/* rare: tiny spinning star */}
+      {/* rare: tiny sparkles */}
       {fig.rarity === 'rare' && (
-        <Sparkles count={14} scale={[1.4, 1.5, 1.4]} position={[0, 0.7, 0]} size={4} speed={0.5} color="#c9b2ff" />
+        <Sparkles count={14} scale={[1.4, 1.5, 1.4]} position={[0, 0.7, 0]} size={4} speed={0.5} color="#3fd5ff" />
       )}
     </group>
   )

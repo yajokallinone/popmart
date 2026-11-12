@@ -2,13 +2,11 @@ import { Suspense, useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { useTexture } from '@react-three/drei'
 import * as THREE from 'three'
-import { BOX, SHELF_TOP, SHELF_T, DEPTH, slotPosition } from '../data'
+import { BOX, FX_COLOR, SHELF_TOP, SHELF_T, DEPTH, slotPosition } from '../data'
 import { prizeOfBox, useStore } from '../store'
 import { registry } from './registry'
 import PrizeModel from './PrizeModel'
 import { glowTexture, plateTexture, shadowTexture, useFontsReady } from './textures'
-
-export const LID_AJAR = -0.85 // lid angle of a box that was already opened
 
 const TEX = {
   front: '/textures/front.jpg',
@@ -29,7 +27,7 @@ function useShared() {
 
 const MAROON = '#7d2540'
 
-export default function MysteryBox({ slot }) {
+export default function EngBox({ slot }) {
   const { id, row, col } = slot
   const home = useMemo(() => new THREE.Vector3(...slotPosition(row, col)), [row, col])
   const tex = useTexture(TEX)
@@ -45,10 +43,7 @@ export default function MysteryBox({ slot }) {
     })
   }, [tex])
 
-  const plates = useMemo(
-    () => [plateTexture(id, false), plateTexture(id, true)],
-    [id, fontsReady],
-  )
+  const plate = useMemo(() => plateTexture(id, false), [id, fontsReady])
 
   const outer = useRef() // animated by GSAP (flight to the centre of the screen)
   const hoverG = useRef() // animated per-frame (hover wiggle / pop-out)
@@ -57,14 +52,12 @@ export default function MysteryBox({ slot }) {
   const outline = useRef()
   const haloMat = useRef()
   const shadowMat = useRef()
-  const plateMat = useRef()
   const mats = useRef([])
   const hv = useRef(0)
   const seed = useMemo(() => Math.random() * 100, [])
 
   const isSelected = useStore((s) => s.selected === id)
   const prize = useStore((s) => prizeOfBox(s, id))
-  const opened = useStore((s) => !!s.opened[id])
 
   useLayoutEffect(() => {
     registry.set(id, { outer, lid, figure, home })
@@ -89,20 +82,25 @@ export default function MysteryBox({ slot }) {
       g.rotation.x = -0.03 * h
     }
     if (outline.current) outline.current.material.opacity = h * 0.95
-    if (haloMat.current) haloMat.current.opacity = h * 0.7 + (opened ? 0 : 0.05 + 0.04 * Math.sin(t * 2))
+    // halo behind the box: idle glow, and a rarity-coloured aura while this box is being opened
+    if (haloMat.current) {
+      const fxOn = s.selected === id && (s.phase === 'shaking' || s.phase === 'opening' || s.phase === 'revealed')
+      const power = { empty: 0, common: 0.1, rare: 0.55, secret: 0.95 }[s.fxRarity] ?? 0
+      const pulse = s.phase === 'shaking' ? 0.7 + 0.3 * Math.sin(t * 24) : 1
+      haloMat.current.color.set(fxOn ? FX_COLOR[s.fxRarity] : '#3fd5ff')
+      haloMat.current.opacity = h * 0.7 + 0.05 + 0.04 * Math.sin(t * 2) + (fxOn ? power * pulse : 0)
+    }
     mats.current.forEach((m) => m && (m.emissiveIntensity = h * 0.28))
 
-    // lid: ajar when already opened; Director controls it while this box is selected
+    // lid: stays shut on the shelf; the Director controls it while this box is selected
     if (lid.current && s.selected !== id) {
-      const goal = s.opened[id] ? LID_AJAR : 0
-      lid.current.rotation.x += (goal - lid.current.rotation.x) * Math.min(1, dt * 6)
+      lid.current.rotation.x += (0 - lid.current.rotation.x) * Math.min(1, dt * 6)
     }
     // shadow of the slot fades when the box has left the shelf
     if (shadowMat.current) {
       const away = s.selected === id
       shadowMat.current.opacity += ((away ? 0.12 : 0.75) - shadowMat.current.opacity) * Math.min(1, dt * 6)
     }
-    if (plateMat.current) plateMat.current.map = plates[s.opened[id] ? 1 : 0]
   })
 
   const onOver = (e) => {
@@ -110,15 +108,15 @@ export default function MysteryBox({ slot }) {
     const s = useStore.getState()
     if (s.phase !== 'idle') return
     s.setHovered(id)
-    document.body.style.cursor = 'pointer'
+    document.body.classList.add('cursor-hot')
   }
   const onOut = () => {
     useStore.getState().clearHovered(id)
-    document.body.style.cursor = ''
+    document.body.classList.remove('cursor-hot')
   }
   const onClick = (e) => {
     e.stopPropagation()
-    document.body.style.cursor = ''
+    document.body.classList.remove('cursor-hot')
     useStore.getState().select(id)
   }
 
@@ -153,7 +151,7 @@ export default function MysteryBox({ slot }) {
       {/* number plate on the shelf lip */}
       <mesh position={[0, plateY, plateZ]} raycast={() => null}>
         <planeGeometry args={[0.6, 0.168]} />
-        <meshBasicMaterial ref={plateMat} map={plates[0]} transparent toneMapped={false} />
+        <meshBasicMaterial map={plate} transparent toneMapped={false} />
       </mesh>
 
       {/* stable (non-wiggling) hit area so hover never flickers */}
@@ -175,7 +173,7 @@ export default function MysteryBox({ slot }) {
             <meshBasicMaterial
               ref={haloMat}
               map={glow}
-              color="#ff8cc0"
+              color="#3fd5ff"
               transparent
               opacity={0}
               depthWrite={false}
@@ -187,7 +185,7 @@ export default function MysteryBox({ slot }) {
           {/* glowing outline (inverted hull) */}
           <mesh ref={outline} scale={[1.085, 1.06, 1.1]} raycast={() => null}>
             <boxGeometry args={[w, bh + lt, d]} />
-            <meshBasicMaterial color="#ff5fa8" side={THREE.BackSide} transparent opacity={0} depthWrite={false} toneMapped={false} />
+            <meshBasicMaterial color="#ffc21a" side={THREE.BackSide} transparent opacity={0} depthWrite={false} toneMapped={false} />
           </mesh>
 
           {/* ── box body: textures cropped from the reference artwork ── */}
@@ -196,7 +194,7 @@ export default function MysteryBox({ slot }) {
             {face(0, tex.side)}
             {face(1, tex.sideLeft)}
             {/* inside of the box (seen once the lid opens) */}
-            <meshStandardMaterial attach="material-2" color="#ffd9e8" emissive="#ffb7d4" emissiveIntensity={0.35} roughness={0.9} />
+            <meshStandardMaterial attach="material-2" color="#3a4859" emissive="#3fd5ff" emissiveIntensity={0.35} roughness={0.9} />
             <meshStandardMaterial attach="material-3" color={MAROON} roughness={0.7} />
             {face(4, tex.front)}
             {face(5, tex.back)}
@@ -209,7 +207,7 @@ export default function MysteryBox({ slot }) {
               <meshStandardMaterial attach="material-0" color={MAROON} roughness={0.6} />
               <meshStandardMaterial attach="material-1" color={MAROON} roughness={0.6} />
               {face(2, tex.top)}
-              <meshStandardMaterial attach="material-3" color="#ffd9e8" roughness={0.8} />
+              <meshStandardMaterial attach="material-3" color="#3a4859" roughness={0.8} />
               <meshStandardMaterial attach="material-4" color={MAROON} roughness={0.6} />
               <meshStandardMaterial attach="material-5" color={MAROON} roughness={0.6} />
             </mesh>

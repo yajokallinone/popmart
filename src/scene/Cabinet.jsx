@@ -1,37 +1,39 @@
 import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { Float, RoundedBox } from '@react-three/drei'
+import { RoundedBox, useTexture } from '@react-three/drei'
 import * as THREE from 'three'
 import {
   BASE_H, CEIL_Y, DEPTH, IW, OUTER_W, SHELF_T, SHELF_TOP, SLOTS, TOP_Y, WALL_T,
 } from '../data'
 import { useStore } from '../store'
-import MysteryBox from './MysteryBox'
-import { heartShape, puffy, starShape } from './shapes'
+import EngBox from './EngBox'
+import { puffy, gearShape } from './shapes'
 import {
   backWallTexture, plaqueTexture, shineTexture, signTexture, useFontsReady, washTexture,
 } from './textures'
 
-const PINK = '#ffc4da'
-const PINK_DEEP = '#ff9ec7'
-const LILAC = '#d9c6ff'
-const MINT = '#c4f1e1'
-const CREAM = '#fff4fa'
+const STEEL = '#46566b' // brushed steel panels
+const STEEL_DARK = '#252f3c'
+const GUNMETAL = '#1d2530'
+const YELLOW = '#ffc21a'
+const CYAN = '#3fd5ff'
+const SILVER = '#c4cfdc'
 
-function Toy({ color, rough = 0.34, coat = 0.8 }) {
+function Toy({ color, rough = 0.38, coat = 0.35, metal = 0.75 }) {
   return (
     <meshPhysicalMaterial
       color={color}
       roughness={rough}
+      metalness={metal}
       clearcoat={coat}
-      clearcoatRoughness={0.22}
-      envMapIntensity={0.7}
+      clearcoatRoughness={0.3}
+      envMapIntensity={1}
     />
   )
 }
 
-const ROW_TINT = ['#ffc4da', '#e0cffd', '#c8f2e3'] // shelf front colours per row
-const ROW_LED = ['#ffd6e8', '#e6d9ff', '#d4fbea']
+const ROW_TINT = ['#3a4859', '#34414f', '#3a4859'] // shelf front colours per row
+const ROW_LED = [CYAN, YELLOW, CYAN]
 
 function Puffy({ geometry, color, position, rotation, scale = 1, emissive = 0 }) {
   return (
@@ -39,7 +41,8 @@ function Puffy({ geometry, color, position, rotation, scale = 1, emissive = 0 })
       <meshPhysicalMaterial
         color={color}
         roughness={0.3}
-        clearcoat={1}
+        metalness={0.7}
+        clearcoat={0.6}
         emissive={color}
         emissiveIntensity={emissive}
       />
@@ -47,38 +50,97 @@ function Puffy({ geometry, color, position, rotation, scale = 1, emissive = 0 })
   )
 }
 
+/** A gear that slowly turns about its own axis (group tilt is set by `rotation`) */
+function SpinGear({ geometry, color, position, rotation = [0, 0, 0], scale = 1, speed = 0.4, emissive = 0.2 }) {
+  const ref = useRef()
+  useFrame((_, dt) => {
+    if (ref.current) ref.current.rotation.z += dt * speed
+  })
+  return (
+    <group position={position} rotation={rotation} scale={scale}>
+      <mesh ref={ref} geometry={geometry} castShadow>
+        <meshPhysicalMaterial
+          color={color}
+          roughness={0.28}
+          metalness={0.85}
+          clearcoat={0.5}
+          emissive={color}
+          emissiveIntensity={emissive}
+          envMapIntensity={1.2}
+        />
+      </mesh>
+    </group>
+  )
+}
+
+function Bolt({ position, r = 0.07 }) {
+  return (
+    <mesh position={position} rotation={[Math.PI / 2, 0, 0]} raycast={() => null}>
+      <cylinderGeometry args={[r, r, 0.05, 6]} />
+      <meshStandardMaterial color="#b9c7d6" metalness={0.9} roughness={0.3} />
+    </mesh>
+  )
+}
+
 function Decorations() {
-  const heart = useMemo(() => puffy(heartShape(0.5), 0.12, 0.05), [])
-  const heartBig = useMemo(() => puffy(heartShape(0.55), 0.14, 0.05), [])
-  const star = useMemo(() => puffy(starShape(0.34, 0.16), 0.1, 0.045), [])
+  const gear = useMemo(() => puffy(gearShape(0.36, 8, 0.28), 0.1, 0.04), [])
+  const gear10 = useMemo(() => puffy(gearShape(0.36, 10, 0.3), 0.1, 0.04), [])
   const sx = OUTER_W / 2 + 0.25
+  const wallX = IW / 2 + WALL_T / 2
+  const wallY = [1.3, 2.3, 3.3, 4.3, 5.3, 6.1]
+  const rx = (OUTER_W + 0.3) / 2 - 0.2
   return (
     <group>
-      {/* stars flanking the sign */}
-      <Float speed={2} rotationIntensity={0.6} floatIntensity={0.5}>
-        <Puffy geometry={star} color="#ffe27a" position={[-2.55, TOP_Y + 0.75, 0.2]} rotation={[0, 0.3, 0.2]} emissive={0.25} />
-      </Float>
-      <Float speed={2.4} rotationIntensity={0.6} floatIntensity={0.5}>
-        <Puffy geometry={star} color="#ffe27a" position={[2.55, TOP_Y + 0.85, 0.2]} rotation={[0, -0.3, -0.2]} emissive={0.25} />
-      </Float>
-      <Float speed={1.8} rotationIntensity={0.4} floatIntensity={0.6}>
-        <Puffy geometry={star} color="#bfe9ff" position={[-3.5, TOP_Y + 0.2, 0.1]} scale={0.7} emissive={0.15} />
-      </Float>
-      <Float speed={2.2} rotationIntensity={0.4} floatIntensity={0.6}>
-        <Puffy geometry={heart} color="#ff8fb8" position={[3.4, TOP_Y + 0.35, 0.1]} rotation={[0, -0.3, 0.15]} emissive={0.2} />
-      </Float>
-      {/* hearts + stars on the side walls */}
-      <Puffy geometry={heartBig} color="#ff9ec7" position={[-sx + 0.1, 5.3, 0.1]} rotation={[0, -0.5, 0.15]} emissive={0.12} />
-      <Puffy geometry={heart} color="#ffe27a" position={[sx - 0.1, 3.6, 0.1]} rotation={[0, 0.5, -0.15]} emissive={0.12} />
-      <Puffy geometry={star} color="#bfe9ff" position={[-sx + 0.1, 2.2, 0.1]} rotation={[0, -0.5, 0.2]} emissive={0.12} />
-      <Puffy geometry={heartBig} color="#c8b2ff" position={[sx - 0.1, 5.4, 0.1]} rotation={[0, 0.5, -0.1]} emissive={0.12} />
-      {/* little bunny-ear bumps on the roof corners */}
+      {/* gears turning around the sign */}
+      <SpinGear geometry={gear} color={YELLOW} position={[-2.65, TOP_Y + 0.75, 0.2]} scale={1.25} speed={0.5} emissive={0.3} />
+      <SpinGear geometry={gear10} color={SILVER} position={[-3.45, TOP_Y + 0.25, 0.1]} scale={0.7} speed={-0.8} emissive={0.1} />
+      <SpinGear geometry={gear10} color={YELLOW} position={[2.65, TOP_Y + 0.8, 0.2]} scale={1.05} speed={-0.55} emissive={0.3} />
+      <SpinGear geometry={gear} color={CYAN} position={[3.4, TOP_Y + 0.3, 0.1]} scale={0.75} speed={0.9} emissive={0.35} />
+      {/* gears on the outer side walls */}
+      <SpinGear geometry={gear10} color={SILVER} position={[-sx + 0.1, 5.3, 0.1]} rotation={[0, -0.5, 0]} scale={1.2} speed={0.35} emissive={0.08} />
+      <SpinGear geometry={gear} color={YELLOW} position={[sx - 0.1, 3.6, 0.1]} rotation={[0, 0.5, 0]} scale={0.95} speed={-0.4} emissive={0.2} />
+      <SpinGear geometry={gear} color={CYAN} position={[-sx + 0.1, 2.2, 0.1]} rotation={[0, -0.5, 0]} scale={0.8} speed={-0.6} emissive={0.25} />
+      <SpinGear geometry={gear10} color={SILVER} position={[sx - 0.1, 5.4, 0.1]} rotation={[0, 0.5, 0]} scale={1.1} speed={0.3} emissive={0.08} />
+      {/* antennas on the roof corners */}
       {[-1, 1].map((s) => (
-        <mesh key={s} position={[s * 2.7, TOP_Y + 0.22, -0.25]} scale={[0.6, 1.4, 0.55]} castShadow>
-          <sphereGeometry args={[0.28, 20, 20]} />
-          <Toy color={s < 0 ? PINK_DEEP : LILAC} />
-        </mesh>
+        <group key={s} position={[s * 2.7, TOP_Y + 0.02, -0.25]}>
+          <mesh position={[0, 0.3, 0]} castShadow>
+            <cylinderGeometry args={[0.07, 0.09, 0.6, 12]} />
+            <Toy color={SILVER} rough={0.3} />
+          </mesh>
+          <mesh position={[0, 0.66, 0]}>
+            <sphereGeometry args={[0.1, 16, 16]} />
+            <meshStandardMaterial color={s < 0 ? CYAN : YELLOW} emissive={s < 0 ? CYAN : YELLOW} emissiveIntensity={1.4} toneMapped={false} />
+          </mesh>
+        </group>
       ))}
+      {/* rivets: side-wall fronts, roof and plinth */}
+      {[-1, 1].flatMap((s) => wallY.map((y) => <Bolt key={`w${s}${y}`} position={[s * wallX, y, DEPTH / 2 + 0.03]} />))}
+      {[-1, 1].flatMap((s) => [0.28, 0.76, 1.24].map((z) => <Bolt key={`r${s}${z}`} position={[s * rx, CEIL_Y + WALL_T / 2, 0.04 + z]} r={0.08} />))}
+      {[-1, 1].map((s) => <Bolt key={`p${s}`} position={[s * rx, BASE_H / 2, DEPTH / 2 + 0.2]} r={0.09} />)}
+    </group>
+  )
+}
+
+/** round logo badge on the plinth */
+function LogoBadge({ x }) {
+  const map = useTexture('/logo.png')
+  useMemo(() => {
+    map.colorSpace = THREE.SRGBColorSpace
+    map.anisotropy = 8
+    map.needsUpdate = true
+  }, [map])
+  const z = DEPTH / 2 + 0.2 + 0.012
+  return (
+    <group position={[x, BASE_H / 2, z]}>
+      <mesh raycast={() => null}>
+        <circleGeometry args={[0.27, 48]} />
+        <meshBasicMaterial map={map} transparent toneMapped={false} />
+      </mesh>
+      <mesh position={[0, 0, -0.002]} raycast={() => null}>
+        <ringGeometry args={[0.27, 0.31, 48]} />
+        <meshBasicMaterial color={YELLOW} toneMapped={false} />
+      </mesh>
     </group>
   )
 }
@@ -96,8 +158,8 @@ function Sign() {
   return (
     <group position={[0, TOP_Y + 0.62, 0.05]}>
       {/* sign casing */}
-      <RoundedBox args={[3.9, 1.1, 0.4]} radius={0.3} smoothness={5} position={[0, 0, -0.04]}>
-        <meshPhysicalMaterial color="#ff9ec7" emissive="#ff7fb5" emissiveIntensity={0.55} roughness={0.35} clearcoat={0.8} />
+      <RoundedBox args={[3.9, 1.1, 0.4]} radius={0.1} smoothness={4} position={[0, 0, -0.04]}>
+        <meshPhysicalMaterial color="#10151c" emissive={CYAN} emissiveIntensity={0.35} metalness={0.6} roughness={0.35} clearcoat={0.6} />
       </RoundedBox>
       <mesh position={[0, 0, 0.17]} raycast={() => null}>
         <planeGeometry args={[3.7, 0.925]} />
@@ -107,10 +169,10 @@ function Sign() {
       {[-1.2, 1.2].map((x) => (
         <mesh key={x} position={[x, -0.62, -0.05]}>
           <cylinderGeometry args={[0.1, 0.12, 0.25, 16]} />
-          <Toy color={LILAC} />
+          <Toy color={STEEL} />
         </mesh>
       ))}
-      <pointLight ref={glow} position={[0, 0.2, 1.2]} color="#ff9fcf" intensity={5} distance={6} decay={2} />
+      <pointLight ref={glow} position={[0, 0.2, 1.2]} color="#ffd67a" intensity={5} distance={6} decay={2} />
     </group>
   )
 }
@@ -135,7 +197,7 @@ function Glass() {
         <planeGeometry args={[IW, h]} />
         <meshPhysicalMaterial
           ref={glassMat}
-          color="#fff0f8"
+          color="#e6f4ff"
           transparent
           opacity={0.1}
           roughness={0.04}
@@ -182,8 +244,8 @@ export default function Cabinet() {
   return (
     <group>
       {/* plinth */}
-      <RoundedBox args={[OUTER_W + 0.3, BASE_H, DEPTH + 0.3]} radius={0.16} smoothness={5} position={[0, BASE_H / 2, 0.04]}>
-        <Toy color={LILAC} />
+      <RoundedBox args={[OUTER_W + 0.3, BASE_H, DEPTH + 0.3]} radius={0.06} smoothness={4} position={[0, BASE_H / 2, 0.04]}>
+        <Toy color={GUNMETAL} />
       </RoundedBox>
       <mesh position={[0, BASE_H / 2, DEPTH / 2 + 0.2]} raycast={() => null}>
         <planeGeometry args={[4.2, 0.4]} />
@@ -192,15 +254,15 @@ export default function Cabinet() {
 
       {/* side walls */}
       {[-1, 1].map((s) => (
-        <RoundedBox key={s} args={[WALL_T, TOP_Y - BASE_H + 0.1, DEPTH]} radius={0.12} smoothness={5}
+        <RoundedBox key={s} args={[WALL_T, TOP_Y - BASE_H + 0.1, DEPTH]} radius={0.05} smoothness={4}
           position={[s * (IW / 2 + WALL_T / 2), BASE_H + (TOP_Y - BASE_H) / 2 - 0.05, 0]}>
-          <Toy color={s < 0 ? PINK : LILAC} />
+          <Toy color={STEEL} />
         </RoundedBox>
       ))}
 
       {/* roof */}
-      <RoundedBox args={[OUTER_W + 0.3, WALL_T, DEPTH + 0.3]} radius={0.14} smoothness={5} position={[0, CEIL_Y + WALL_T / 2, 0.04]}>
-        <Toy color={PINK} />
+      <RoundedBox args={[OUTER_W + 0.3, WALL_T, DEPTH + 0.3]} radius={0.06} smoothness={4} position={[0, CEIL_Y + WALL_T / 2, 0.04]}>
+        <Toy color={STEEL_DARK} />
       </RoundedBox>
 
       {/* back wall */}
@@ -228,24 +290,26 @@ export default function Cabinet() {
         <group key={row}>
           <mesh position={[0, y, 0.42]} raycast={() => null}>
             <boxGeometry args={[IW - 0.25, 0.04, 0.12]} />
-            <meshBasicMaterial color="#fffafc" toneMapped={false} />
+            <meshBasicMaterial color="#eaffff" toneMapped={false} />
           </mesh>
           <mesh position={[0, y - 0.62, -DEPTH / 2 + 0.07]} raycast={() => null}>
             <planeGeometry args={[IW, 1.25]} />
-            <meshBasicMaterial map={wash} color="#ffd0e6" transparent opacity={0.55} depthWrite={false}
+            <meshBasicMaterial map={wash} color="#7fd8ff" transparent opacity={0.55} depthWrite={false}
               blending={THREE.AdditiveBlending} toneMapped={false} />
           </mesh>
-          <pointLight position={[0, y - 0.2, 0.45]} color="#fff0f6" intensity={11} distance={6.5} decay={2} />
+          <pointLight position={[0, y - 0.2, 0.45]} color="#e8f6ff" intensity={11} distance={6.5} decay={2} />
         </group>
       ))}
 
+      <LogoBadge x={-2.75} />
+      <LogoBadge x={2.75} />
       <Glass />
       <Decorations />
       <Sign />
 
       {/* exactly 12 boxes in a fixed 3 × 4 grid */}
       {SLOTS.map((slot) => (
-        <MysteryBox key={slot.id} slot={slot} />
+        <EngBox key={slot.id} slot={slot} />
       ))}
     </group>
   )
