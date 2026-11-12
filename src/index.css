@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Fredoka", ui-rounded, "Hiragino Maru Gothic ProN", system-ui, sans-serif;
+  --color-maroon: #8c1d40;
+  --color-bubble: #ff8fb8;
+  --color-lilac: #b79bff;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-display);
+  color: #5b2342;
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  background:
+    radial-gradient(900px 600px at 15% 10%, rgba(255, 255, 255, 0.9), transparent 60%),
+    radial-gradient(900px 700px at 90% 85%, rgba(200, 170, 255, 0.55), transparent 60%),
+    linear-gradient(160deg, #ffe1ef 0%, #f6e5ff 50%, #dde8ff 100%);
+}
+
+canvas {
+  touch-action: none;
+  outline: none;
+}
+
+@keyframes flash {
+  0% { opacity: 0.9; }
+  100% { opacity: 0; }
+}
+@keyframes pop-in {
+  0% { opacity: 0; transform: translateY(24px) scale(0.92); }
+  60% { transform: translateY(-4px) scale(1.02); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes float-y {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+@keyframes tip-in {
+  0% { opacity: 0; scale: 0.85; }
+  100% { opacity: 1; scale: 1; }
+}
+@keyframes shine {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-flash { animation: flash 0.9s ease-out forwards; }
+.animate-pop-in { animation: pop-in 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+.animate-float-y { animation: float-y 6s ease-in-out infinite; }
+.animate-tip-in { animation: tip-in 0.14s ease-out both; }
+.shine-text {
+  background: linear-gradient(100deg, #ff5fa2 20%, #fff 45%, #9b6bff 70%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shine 5s linear infinite;
+}
+
+/* drei <Loader/> */
+[class*="_dataContainer"] { font-family: var(--font-display); }
