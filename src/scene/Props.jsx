@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import { RoundedBox } from '@react-three/drei'
 import { FX_COLOR } from '../data'
 import { useStore } from '../store'
+import Showcase from './Showcase'
 import { gearShape, puffy } from './shapes'
 
 const YELLOW = '#ffc21a'
@@ -354,12 +355,13 @@ export function Robot(props) {
   )
 }
 
-/** one machine on each side of the cabinet, turned slightly towards it */
+/** machines on both sides of the cabinet, turned slightly towards it; a big rotating display box on the right */
 export default function SideProps() {
   return (
     <group>
-      <Engine position={[-5.25, 0, 0.9]} rotation={[0, 0.35, 0]} scale={1.15} />
-      <Robot position={[5.25, 0, 0.9]} rotation={[0, -0.35, 0]} scale={0.95} />
+      <Engine position={[-5.1, 0, 0.9]} rotation={[0, 0.35, 0]} scale={1.15} />
+      <Robot position={[4.6, 0, 0.9]} rotation={[0, -0.35, 0]} scale={0.95} />
+      <Showcase position={[7.2, 0, 1.0]} />
     </group>
   )
 }

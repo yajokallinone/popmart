@@ -17,7 +17,7 @@ function frontPose(camera, size) {
   const aspect = size.width / size.height
   const vfov = THREE.MathUtils.degToRad(camera.fov)
   const halfH = (TOP_Y + 1.35) / 2 + 1.0
-  const halfW = 6.4
+  const halfW = 9.6
   const distH = halfH / Math.tan(vfov / 2)
   const distW = halfW / (Math.tan(vfov / 2) * aspect)
   const dist = Math.max(distH, distW)
@@ -131,14 +131,14 @@ function Floor() {
   return (
     <group>
       <mesh rotation-x={-Math.PI / 2} position={[0, -0.02, 0.2]} receiveShadow>
-        <circleGeometry args={[7.2, 80]} />
+        <circleGeometry args={[9.9, 96]} />
         <meshStandardMaterial color="#1b2531" roughness={0.55} metalness={0.5} />
       </mesh>
       <mesh rotation-x={-Math.PI / 2} position={[0, -0.01, 0.2]}>
-        <ringGeometry args={[6.2, 6.5, 80]} />
+        <ringGeometry args={[9.2, 9.55, 96]} />
         <meshStandardMaterial color="#ffc21a" roughness={0.5} metalness={0.4} emissive="#ffb000" emissiveIntensity={0.25} />
       </mesh>
-      <ContactShadows position={[0, 0.01, 0.1]} opacity={0.4} scale={14} blur={2.6} far={3.2} color="#02070f" />
+      <ContactShadows position={[0, 0.01, 0.1]} opacity={0.4} scale={22} blur={2.6} far={3.2} color="#02070f" />
     </group>
   )
 }

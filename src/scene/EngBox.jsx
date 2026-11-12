@@ -1,20 +1,11 @@
 import { Suspense, useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { useTexture } from '@react-three/drei'
 import * as THREE from 'three'
 import { BOX, FX_COLOR, SHELF_TOP, SHELF_T, DEPTH, slotPosition } from '../data'
 import { prizeOfBox, useStore } from '../store'
 import { registry } from './registry'
 import PrizeModel from './PrizeModel'
-import { glowTexture, plateTexture, shadowTexture, useFontsReady } from './textures'
-
-const TEX = {
-  front: '/textures/front.jpg',
-  side: '/textures/side.jpg',
-  sideLeft: '/textures/side_left.jpg',
-  top: '/textures/top.jpg',
-  back: '/textures/back.jpg',
-}
+import { glowTexture, plateTexture, shadowTexture, useBoxTextures, useFontsReady } from './textures'
 
 let sharedGlow, sharedShadow
 function useShared() {
@@ -25,23 +16,15 @@ function useShared() {
   }, [])
 }
 
-const MAROON = '#7d2540'
+const TRIM = '#e0a400' // yellow trim on the lid edge
+const BODY_DARK = '#1d2530'
 
 export default function EngBox({ slot }) {
   const { id, row, col } = slot
   const home = useMemo(() => new THREE.Vector3(...slotPosition(row, col)), [row, col])
-  const tex = useTexture(TEX)
+  const tex = useBoxTextures()
   const { glow, shadow } = useShared()
   const fontsReady = useFontsReady()
-
-  // Fix colour-space + anisotropy once (textures are shared by all 12 boxes)
-  useLayoutEffect(() => {
-    Object.values(tex).forEach((t) => {
-      t.colorSpace = THREE.SRGBColorSpace
-      t.anisotropy = 8
-      t.needsUpdate = true
-    })
-  }, [tex])
 
   const plate = useMemo(() => plateTexture(id, false), [id, fontsReady])
 
@@ -195,7 +178,7 @@ export default function EngBox({ slot }) {
             {face(1, tex.sideLeft)}
             {/* inside of the box (seen once the lid opens) */}
             <meshStandardMaterial attach="material-2" color="#3a4859" emissive="#3fd5ff" emissiveIntensity={0.35} roughness={0.9} />
-            <meshStandardMaterial attach="material-3" color={MAROON} roughness={0.7} />
+            <meshStandardMaterial attach="material-3" color={BODY_DARK} roughness={0.7} />
             {face(4, tex.front)}
             {face(5, tex.back)}
           </mesh>
@@ -204,12 +187,12 @@ export default function EngBox({ slot }) {
           <group ref={lid} position={[0, bh / 2, -d / 2]}>
             <mesh position={[0, lt / 2, d / 2]}>
               <boxGeometry args={[w, lt, d]} />
-              <meshStandardMaterial attach="material-0" color={MAROON} roughness={0.6} />
-              <meshStandardMaterial attach="material-1" color={MAROON} roughness={0.6} />
+              <meshStandardMaterial attach="material-0" color={TRIM} roughness={0.5} metalness={0.4} />
+              <meshStandardMaterial attach="material-1" color={TRIM} roughness={0.5} metalness={0.4} />
               {face(2, tex.top)}
               <meshStandardMaterial attach="material-3" color="#3a4859" roughness={0.8} />
-              <meshStandardMaterial attach="material-4" color={MAROON} roughness={0.6} />
-              <meshStandardMaterial attach="material-5" color={MAROON} roughness={0.6} />
+              <meshStandardMaterial attach="material-4" color={TRIM} roughness={0.5} metalness={0.4} />
+              <meshStandardMaterial attach="material-5" color={TRIM} roughness={0.5} metalness={0.4} />
             </mesh>
           </group>
 

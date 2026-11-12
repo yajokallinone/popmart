@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { useTexture } from '@react-three/drei'
 import { useEffect, useState } from 'react'
 
 const FONT = '"Fredoka", "Baloo 2", ui-rounded, system-ui, sans-serif'
@@ -303,4 +304,70 @@ export function shineTexture() {
   const t = new THREE.CanvasTexture(c)
   t.colorSpace = THREE.SRGBColorSpace
   return t
+}
+
+// ─────────────────────────────────────────────────────────────
+//  ENG BOX – the box artwork (drawn with canvas, shared by all 12 shelf boxes + the showcase box)
+// ─────────────────────────────────────────────────────────────
+
+function spaced(ctx, px) {
+  try {
+    ctx.letterSpacing = `${px}px`
+  } catch {
+    /* older browsers: no letter spacing */
+  }
+}
+
+function fitText(ctx, text, maxW, size, weight = 700) {
+  let fs = size
+  ctx.font = `${weight} ${fs}px ${FONT}`
+  while (ctx.measureText(text).width > maxW && fs > 20) {
+    fs -= 4
+    ctx.font = `${weight} ${fs}px ${FONT}`
+  }
+  return fs
+}
+
+const BOX_TEX = {
+  front: '/textures/front.jpg',
+  side: '/textures/side.jpg',
+  sideLeft: '/textures/side_left.jpg',
+  top: '/textures/top.jpg',
+  back: '/textures/back.jpg',
+}
+let boxTexReady = false
+/** the five original box artwork textures (public/textures), shared by every box and the showcase */
+export function useBoxTextures() {
+  const tex = useTexture(BOX_TEX)
+  if (!boxTexReady) {
+    Object.values(tex).forEach((t) => {
+      t.colorSpace = THREE.SRGBColorSpace
+      t.anisotropy = 8
+      t.needsUpdate = true
+    })
+    boxTexReady = true
+  }
+  return tex
+}
+
+/** small "drag to rotate" sign for the showcase pedestal */
+export function hintTexture() {
+  const [c, ctx] = make(512, 96)
+  ctx.fillStyle = '#10151c'
+  rr(ctx, 0, 0, 512, 96, 18)
+  ctx.fill()
+  ctx.strokeStyle = YELLOW
+  ctx.lineWidth = 6
+  rr(ctx, 5, 5, 502, 86, 14)
+  ctx.stroke()
+  ctx.fillStyle = CYAN
+  gear(ctx, 64, 48, 24, 8, 0)
+  ctx.fill()
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  spaced(ctx, 3)
+  fitText(ctx, 'DRAG TO ROTATE', 360, 42, 600)
+  ctx.fillStyle = YELLOW
+  ctx.fillText('DRAG TO ROTATE', 296, 50)
+  return toTexture(c)
 }
