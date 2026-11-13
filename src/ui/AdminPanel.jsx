@@ -96,8 +96,17 @@ function Row({ p }) {
         <NumberField value={p.left} onChange={(v) => update(p.id, { left: v })} />
       </label>
       <label className="text-[11px] font-semibold text-sky-600 sm:contents">
-        <span className="sm:hidden">โอกาสเจอ (%)</span>
-        <PercentField value={p.chance} onChange={(v) => update(p.id, { chance: v })} />
+        <span className="sm:hidden">โอกาสเข้าตู้ (%)</span>
+        {p.rarity === 'common' ? (
+          <div
+            title="ระดับ Common จะถูกสุ่มใส่เข้าตู้การันตี 1 กล่องทุกรอบโดยอัตโนมัติ"
+            className="grid h-[36px] select-none place-items-center rounded-xl border-2 border-sky-200/80 bg-sky-50/90 px-2 text-center text-xs font-bold text-sky-700"
+          >
+            การันตีทุกรอบ
+          </div>
+        ) : (
+          <PercentField value={p.chance} onChange={(v) => update(p.id, { chance: v })} />
+        )}
       </label>
 
       <button
@@ -123,7 +132,7 @@ export default function AdminPanel() {
   if (!open) return null
   const left = prizes.reduce((a, p) => a + p.left, 0)
   const total = prizes.reduce((a, p) => a + p.total, 0)
-  const sum = prizes.filter((p) => p.left > 0).reduce((a, p) => a + p.chance, 0)
+  const activeCount = prizes.filter((p) => p.left > 0 && p.chance > 0).length
 
   const onAdd = async (e) => {
     const files = [...(e.target.files || [])]
@@ -147,7 +156,7 @@ export default function AdminPanel() {
           <div>
             <div className="text-xl font-bold text-maroon">ตั้งค่ารางวัล · Prize Pool</div>
             <div className="text-[13px] text-sky-700/80">
-              อัปโหลดรูป กำหนดจำนวน และโอกาสเจอ — บันทึกอัตโนมัติในเบราว์เซอร์นี้
+              อัปโหลดรูป กำหนดจำนวน และ % โอกาสเข้าตู้ต่อรอบ — บันทึกอัตโนมัติในเบราว์เซอร์นี้
             </div>
           </div>
           <button
@@ -160,8 +169,8 @@ export default function AdminPanel() {
 
         <div className="flex flex-wrap gap-2 px-5 pb-3 text-xs font-bold">
           <span className="rounded-full bg-white px-3 py-1 text-maroon">รางวัลคงเหลือ {left}/{total} ชิ้น</span>
-          {sum > 100 && (
-            <span className="rounded-full bg-amber-200 px-3 py-1 text-amber-800">⚠ % รวม {sum.toFixed(1)}% เกิน 100 — ของที่ % สูงจะออกน้อยกว่าที่ตั้งเล็กน้อย</span>
+          {activeCount > 12 && (
+            <span className="rounded-full bg-amber-200 px-3 py-1 text-amber-800">⚠ มีรางวัลพร้อมออก {activeCount} รายการ (ตู้มี 12 กล่อง — หากสุ่มติดพร้อมกันเกิน 12 ชิ้น จะจัดความสำคัญให้ระดับหายากก่อน)</span>
           )}
           {total > 0 && left === 0 && (
             <span className="rounded-full bg-amber-200 px-3 py-1 text-amber-800">⚠ ของหมดแล้ว — เติมของเพื่อให้สุ่มได้อีก</span>
@@ -171,7 +180,7 @@ export default function AdminPanel() {
         <div className="hidden grid-cols-[64px_minmax(120px,1.6fr)_110px_84px_84px_96px_36px] gap-3 px-5 pb-1 text-[11px] font-bold uppercase tracking-wide text-sky-600 sm:grid">
           <span>รูป</span><span>ชื่อ</span><span>ระดับ</span>
           <span className="text-center">จำนวนทั้งหมด</span><span className="text-center">คงเหลือ</span>
-          <span className="text-center">โอกาสเจอ</span><span />
+          <span className="text-center">โอกาสเข้าตู้</span><span />
         </div>
 
         <div className="flex-1 space-y-2 overflow-y-auto px-5 pb-3">
@@ -180,7 +189,7 @@ export default function AdminPanel() {
           ))}
           {!prizes.length && <div className="py-8 text-center text-sky-600">ยังไม่มีรางวัล — กด “เพิ่มรางวัล”</div>}
           <div className="px-1 pt-1 text-[12px] leading-snug text-sky-700/80">
-            โอกาสเจอเป็นของแต่ละรางวัลเอง ตั้งกี่ % ก็ได้กี่ % ต่อการเปิด 1 กล่อง (ถ้ารวมกันไม่เกิน 100% จะตรงตามที่ตั้งเป๊ะ) — ถ้าไม่เข้าเงื่อนไขรางวัลไหนเลยจะไม่ได้ของ และของที่หมดจะไม่มีโอกาสได้อีก
+            กติกาการสุ่มแต่ละรอบ: <b>Common</b> จะถูกใส่เข้าตู้ <b>การันตี 1 กล่องทุกรอบ</b> ส่วน <b>Rare</b> และ <b>Secret</b> จะสุ่มแถมเข้าตู้ตาม % ที่ตั้งไว้แต่ <b>จะไม่ออกพร้อมกันในรอบเดียว</b> (แต่ละรอบในตู้ 12 กล่องจึงมีโอกาสเป็น: <i>Common อย่างเดียว</i>, <i>Common + Rare</i>, หรือ <i>Common + Secret</i>)
           </div>
         </div>
 

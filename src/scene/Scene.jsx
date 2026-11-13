@@ -95,7 +95,8 @@ function Lights() {
   const dim = useRef(0) // extra blackout while a SECRET box is charging up
   useFrame((_, dt) => {
     const st = useStore.getState()
-    f.current += ((st.selected != null ? 1 : 0) - f.current) * Math.min(1, dt * 4)
+    const inCenter = st.phase === 'flying' || st.phase === 'shaking' || st.phase === 'opening'
+    f.current += ((inCenter ? 1 : 0) - f.current) * Math.min(1, dt * 4)
     const dimGoal = st.fxRarity === 'secret' && (st.phase === 'shaking' || st.phase === 'opening') ? 1 : 0
     dim.current += (dimGoal - dim.current) * Math.min(1, dt * 3)
     const k = 1 - 0.45 * dim.current

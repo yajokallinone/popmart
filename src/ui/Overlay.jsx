@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { FX_COLOR, RARITY, prizeOdds } from '../data'
+import { FX_COLOR, RARITY, SLOTS, prizeOdds } from '../data'
 import { prizeOfBox, useStore } from '../store'
 import AdminPanel from './AdminPanel'
 import { PrizeIcon } from './FigureIcon'
@@ -90,7 +90,13 @@ function PrizePool() {
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[13px] font-semibold leading-tight text-maroon">{p.name}</div>
                 <div className="text-[11px] leading-tight text-sky-600/80">
-                  {out ? 'หมดแล้ว' : `โอกาส ${odds[p.id].toFixed(odds[p.id] < 10 ? 1 : 0)}%`}
+                  {out
+                    ? 'หมดแล้ว'
+                    : p.rarity === 'common'
+                      ? odds[p.id] >= 99.9
+                        ? 'การันตีเข้าตู้ทุกรอบ (100%)'
+                        : `การันตีเข้าตู้ (${odds[p.id].toFixed(0)}%)`
+                      : `สุ่มแถมเข้าตู้ ${odds[p.id].toFixed(odds[p.id] < 10 ? 1 : 0)}%`}
                 </div>
               </div>
               <span className="rounded-full bg-white/80 px-2 py-0.5 text-xs font-bold text-maroon">
@@ -115,6 +121,8 @@ function Reveal() {
   const phase = useStore((s) => s.phase)
   const selected = useStore((s) => s.selected)
   const prize = useStore((s) => (s.selected ? prizeOfBox(s, s.selected) : null))
+  const results = useStore((s) => s.results)
+  const prizes = useStore((s) => s.prizes)
   const requestClose = useStore((s) => s.requestClose)
 
   const status = {
@@ -133,8 +141,37 @@ function Reveal() {
   if (phase !== 'revealed' && phase !== 'returning') return null
 
   const r = prize ? RARITY[prize.rarity] || RARITY.common : null
+  const boxLabel = `#${String(selected).padStart(2, '0')}`
+  const otherHits = SLOTS.filter((sl) => sl.id !== selected && results[sl.id] && results[sl.id] !== 'empty')
+    .map((sl) => ({ boxId: sl.id, prize: prizes.find((p) => p.id === results[sl.id]) }))
+    .filter((x) => x.prize)
+
   return (
-    <div className={`absolute inset-x-0 bottom-5 flex justify-center px-4 transition-opacity duration-300 ${phase === 'returning' ? 'opacity-0' : 'opacity-100'}`}>
+    <div className={`absolute inset-x-0 bottom-5 flex flex-col items-center gap-2 px-4 transition-opacity duration-300 ${phase === 'returning' ? 'opacity-0' : 'opacity-100'}`}>
+      {/* Peek summary of the other 11 boxes in this round */}
+      <div className="animate-pop-in pointer-events-auto flex max-w-[min(94vw,560px)] flex-wrap items-center justify-center gap-1.5 rounded-2xl border-2 border-white/85 bg-[#0f1d2e]/90 px-3.5 py-2 text-xs font-semibold text-white shadow-[0_10px_28px_rgba(5,15,30,0.45)] backdrop-blur-md">
+        <span className="rounded-full bg-emerald-400/20 px-2.5 py-0.5 font-bold text-emerald-300 ring-1 ring-emerald-400/50">
+          ✓ คุณเปิดกล่อง {boxLabel}
+        </span>
+        <span className="text-sky-300">· เฉลยกล่องอื่นที่มีรางวัล:</span>
+        {otherHits.length ? (
+          otherHits.map(({ boxId, prize: op }) => {
+            const or = RARITY[op.rarity] || RARITY.common
+            return (
+              <span
+                key={boxId}
+                className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold text-[#0b1624]"
+                style={{ background: or.color }}
+              >
+                กล่อง #{String(boxId).padStart(2, '0')} {'⚙'.repeat(or.stars)} {op.name}
+              </span>
+            )
+          })
+        ) : (
+          <span className="text-slate-300">ไม่มี (คุณเปิดเจอรางวัลชิ้นเดียวของรอบนี้แล้ว!)</span>
+        )}
+      </div>
+
       <div className="animate-pop-in pointer-events-auto flex w-[min(94vw,460px)] items-center gap-4 rounded-[28px] border-[3px] border-white bg-white/85 p-4 shadow-[0_16px_50px_rgba(30,90,160,0.35)] backdrop-blur-md">
         <div
           className="grid h-20 w-20 shrink-0 place-items-center rounded-2xl"
@@ -143,15 +180,18 @@ function Reveal() {
           {prize ? <PrizeIcon prize={prize} size={62} /> : <span className="text-4xl">📭</span>}
         </div>
         <div className="min-w-0 flex-1">
+          <div className="mb-1 flex flex-wrap items-center gap-1.5">
+            <span className="rounded-full bg-[#1c2735] px-2.5 py-0.5 text-xs font-bold text-[#ffc21a]">
+              คุณเลือกกล่อง {boxLabel}
+            </span>
+            {prize && (
+              <span className="rounded-full px-2.5 py-0.5 text-xs font-bold text-white" style={{ background: r.color }}>
+                {'⚙'.repeat(r.stars)} {r.label}
+              </span>
+            )}
+          </div>
           {prize ? (
-            <>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full px-2.5 py-0.5 text-xs font-bold text-white" style={{ background: r.color }}>
-                  {'⚙'.repeat(r.stars)} {r.label}
-                </span>
-              </div>
-              <div className="mt-1 truncate text-2xl font-bold leading-tight text-maroon">{prize.name}</div>
-            </>
+            <div className="truncate text-2xl font-bold leading-tight text-maroon">{prize.name}</div>
           ) : (
             <>
               <div className="text-2xl font-bold leading-tight text-maroon">ไม่ได้รางวัล</div>

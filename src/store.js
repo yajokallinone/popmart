@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { DEFAULT_PRIZES, drawPrize } from './data'
+import { DEFAULT_PRIZES, dealRound } from './data'
 
 /** outcome class of a prize: its rarity, or 'empty' when the box has nothing */
 export const outcomeOf = (prize) => (prize ? prize.rarity || 'common' : 'empty')
@@ -20,11 +20,12 @@ function loadPrizes() {
 }
 
 const int = (v) => Math.max(0, Math.floor(Number(v) || 0))
+const initialPrizes = loadPrizes()
 
 // phase: idle → flying → shaking → opening → revealed → returning → idle
 export const useStore = create((set, get) => ({
-  prizes: loadPrizes(),
-  results: {}, // boxId → prizeId | 'empty'   (drawn when a box is picked, cleared after every round)
+  prizes: initialPrizes,
+  results: dealRound(initialPrizes), // boxId (1..12) → prizeId | 'empty' (pre-dealt before each round)
   rounds: 0, // how many boxes have been opened since the last Restock
   fxRarity: 'common', // outcome of the box being opened: drives lights / camera / confetti
   hovered: null,
@@ -43,14 +44,24 @@ export const useStore = create((set, get) => ({
   setAdmin: (adminOpen) => set({ adminOpen }),
   setCamMode: (camMode) => set({ camMode }),
 
-  // ── picking a box: the prize is drawn right now, by each prize's % chance (stock permitting) ──
+  // ── picking a box: all 12 boxes already hold their pre-dealt contents for this round ──
   select: (id) => {
     const s = get()
     if (s.phase !== 'idle' || s.selected != null) return
-    // roll by % chance: a prize drops (and its stock goes down by 1) or the box is empty
-    const p = drawPrize(s.prizes)
+    const results = Object.keys(s.results).length ? s.results : dealRound(s.prizes)
+    const pid = results[id]
+    const p = pid && pid !== 'empty' ? s.prizes.find((x) => x.id === pid && x.left > 0) || null : null
+    // only the prize inside the box the player actually picked loses 1 stock
     const prizes = p ? s.prizes.map((x) => (x.id === p.id ? { ...x, left: x.left - 1 } : x)) : s.prizes
-    set({ selected: id, phase: 'flying', hovered: null, closeRequested: false, results: { [id]: p ? p.id : 'empty' }, prizes, fxRarity: outcomeOf(p) })
+    set({
+      selected: id,
+      phase: 'flying',
+      hovered: null,
+      closeRequested: false,
+      results,
+      prizes,
+      fxRarity: outcomeOf(p),
+    })
   },
 
   // called by the Director at the moment the lid pops open
@@ -69,26 +80,41 @@ export const useStore = create((set, get) => ({
     if (get().phase !== 'revealed') return
     set({ closeRequested: true, phase: 'returning' })
   },
-  // the box is back on the shelf → every box is closed & freshly shuffled again
-  finishClose: () => set({ selected: null, phase: 'idle', closeRequested: false, results: {} }),
+  // the box is back on the shelf → every box closes & a brand-new 12-box round is shuffled
+  finishClose: () =>
+    set((s) => ({
+      selected: null,
+      phase: 'idle',
+      closeRequested: false,
+      results: dealRound(s.prizes),
+    })),
 
   surprise: () => {
     if (get().phase !== 'idle') return
     get().select(1 + Math.floor(Math.random() * 12))
   },
 
-  // ── prize pool editing ──
+  // ── prize pool editing (re-shuffles the current idle round whenever prizes change) ──
   addPrize: ({ name, image }) =>
-    set((s) => ({
-      prizes: [
+    set((s) => {
+      const prizes = [
         ...s.prizes,
-        { id: `p_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`, name: name || 'New prize',
-          rarity: 'common', builtin: null, image: image || null, total: 1, left: 1, chance: 10 },
-      ],
-    })),
+        {
+          id: `p_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`,
+          name: name || 'New prize',
+          rarity: 'common',
+          builtin: null,
+          image: image || null,
+          total: 1,
+          left: 1,
+          chance: 10,
+        },
+      ]
+      return { prizes, ...(s.phase === 'idle' ? { results: dealRound(prizes) } : {}) }
+    }),
   updatePrize: (id, patch) =>
-    set((s) => ({
-      prizes: s.prizes.map((p) => {
+    set((s) => {
+      const prizes = s.prizes.map((p) => {
         if (p.id !== id) return p
         const n = { ...p, ...patch }
         if ('total' in patch) {
@@ -98,21 +124,37 @@ export const useStore = create((set, get) => ({
         if ('left' in patch) n.left = int(patch.left)
         if ('chance' in patch) n.chance = Math.max(0, Math.min(100, Math.round((Number(patch.chance) || 0) * 100) / 100))
         return n
-      }),
-    })),
-  removePrize: (id) => set((s) => ({ prizes: s.prizes.filter((p) => p.id !== id) })),
-  resetStock: () => set((s) => ({ prizes: s.prizes.map((p) => ({ ...p, left: p.total })) })),
-  clearPrizes: () => set({ prizes: structuredClone(DEFAULT_PRIZES) }),
+      })
+      return { prizes, ...(s.phase === 'idle' ? { results: dealRound(prizes) } : {}) }
+    }),
+  removePrize: (id) =>
+    set((s) => {
+      const prizes = s.prizes.filter((p) => p.id !== id)
+      return { prizes, ...(s.phase === 'idle' ? { results: dealRound(prizes) } : {}) }
+    }),
+  resetStock: () =>
+    set((s) => {
+      const prizes = s.prizes.map((p) => ({ ...p, left: p.total }))
+      return { prizes, ...(s.phase === 'idle' ? { results: dealRound(prizes) } : {}) }
+    }),
+  clearPrizes: () =>
+    set((s) => {
+      const prizes = structuredClone(DEFAULT_PRIZES)
+      return { prizes, ...(s.phase === 'idle' ? { results: dealRound(prizes) } : {}) }
+    }),
 
-  // refill the stock of every prize and start counting rounds again
+  // refill the stock of every prize, reset round counter, and shuffle a fresh 12-box round
   reset: () => {
     if (get().phase !== 'idle') return
-    set((s) => ({
-      results: {},
-      rounds: 0,
-      hovered: null,
-      prizes: s.prizes.map((p) => ({ ...p, left: p.total })),
-    }))
+    set((s) => {
+      const prizes = s.prizes.map((p) => ({ ...p, left: p.total }))
+      return {
+        results: dealRound(prizes),
+        rounds: 0,
+        hovered: null,
+        prizes,
+      }
+    })
   },
 }))
 

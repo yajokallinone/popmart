@@ -77,36 +77,108 @@ export const DEFAULT_PRIZES = []
 /** only prizes that are still in stock can drop */
 const live = (p) => p.left > 0 && p.chance > 0
 
-/** each prize has its OWN chance (%) per box – they are independent, so they don't have to add up to 100 */
+const RARITY_ORDER = { secret: 0, rare: 1, common: 2 }
+
+/**
+ * Chance (%) for each prize to appear in the cabinet in a given round:
+ *  • Common (left > 0): 1 Common prize is guaranteed every round (100% if 1 Common type, or proportional share if multiple).
+ *  • Rare / Secret (left > 0): spawns as the round's bonus prize according to its own `chance` (%).
+ */
 export function prizeOdds(prizes) {
   const out = {}
+  const commons = prizes.filter((p) => p.left > 0 && p.rarity === 'common')
+
   prizes.forEach((p) => {
-    out[p.id] = live(p) ? Math.min(100, p.chance) : 0
+    if (p.left <= 0) {
+      out[p.id] = 0
+    } else if (p.rarity === 'common') {
+      out[p.id] = commons.length > 0 ? 100 / commons.length : 100
+    } else {
+      out[p.id] = live(p) ? Math.min(100, p.chance) : 0
+    }
   })
   return out
 }
 
-/**
- * Roll one box – every prize in stock is judged by its OWN chance (%).
- *  • total ≤ 100 %  → each prize drops with exactly the % you typed, nobody steals from anybody.
- *  • total > 100 %  → each prize rolls independently; when several hit at once the rarer one
- *    (lower %) wins, so higher-% prizes drop a little less often than typed.
- * No hit = nothing in the box.
- */
-export function drawPrize(prizes) {
-  const pool = prizes.filter(live)
-  const sum = pool.reduce((a, p) => a + p.chance, 0)
-  if (sum <= 100) {
-    let r = Math.random() * 100
-    for (const p of pool) {
-      r -= p.chance
-      if (r < 0) return p
-    }
-    return null
+function pickWeighted(items) {
+  const totalWeight = items.reduce((a, p) => a + Math.max(1, p.chance || 0), 0)
+  let r = Math.random() * totalWeight
+  for (const p of items) {
+    r -= Math.max(1, p.chance || 0)
+    if (r <= 0) return p
   }
-  const hits = pool.filter((p) => Math.random() * 100 < p.chance)
-  if (!hits.length) return null
-  return hits.reduce((a, b) => (b.chance < a.chance ? b : a))
+  return items[0]
+}
+
+/**
+ * Round dealer:
+ *  1. Common is GUARANTEED in every round (1 Common box per round as long as any Common is in stock).
+ *  2. Rare and Secret roll as a bonus according to their `%` (`chance`), but are MUTUALLY EXCLUSIVE —
+ *     at most ONE bonus prize (either Rare OR Secret, never both) can appear alongside Common in the same round.
+ *     So a round's cabinet will contain:
+ *       • Common only (1 box)
+ *       • Common + Rare (2 boxes)
+ *       • Common + Secret (2 boxes)
+ */
+export function dealRound(prizes) {
+  const commons = prizes.filter((p) => p.left > 0 && p.rarity === 'common')
+  const specials = prizes
+    .filter((p) => live(p) && (p.rarity === 'rare' || p.rarity === 'secret'))
+    .sort((a, b) => (RARITY_ORDER[a.rarity] ?? 9) - (RARITY_ORDER[b.rarity] ?? 9) || a.chance - b.chance)
+
+  const hits = []
+
+  // 1 ─ Always place 1 Common prize into the cabinet every round (while Common stock lasts)
+  if (commons.length) {
+    hits.push(commons[Math.floor(Math.random() * commons.length)])
+  }
+
+  // 2 ─ Roll at most ONE bonus prize (Rare OR Secret, never both in the same round)
+  if (specials.length) {
+    const sum = specials.reduce((a, p) => a + p.chance, 0)
+    let bonus = null
+    if (sum <= 100) {
+      let r = Math.random() * 100
+      for (const p of specials) {
+        r -= p.chance
+        if (r < 0) {
+          bonus = p
+          break
+        }
+      }
+    } else {
+      const rolled = specials.filter((p) => Math.random() * 100 < p.chance)
+      if (rolled.length) bonus = rolled[0] // Secret / lowest-chance wins
+    }
+    // Fallback if all Commons are out of stock so the cabinet still has 1 prize while any stock remains
+    if (!bonus && !hits.length) {
+      bonus = pickWeighted(specials)
+    }
+    if (bonus) hits.push(bonus)
+  }
+
+  const ids = SLOTS.map((s) => s.id)
+  for (let i = ids.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[ids[i], ids[j]] = [ids[j], ids[i]]
+  }
+
+  const results = {}
+  SLOTS.forEach((s) => {
+    results[s.id] = 'empty'
+  })
+  hits.slice(0, SLOTS.length).forEach((p, idx) => {
+    results[ids[idx]] = p.id
+  })
+  return results
+}
+
+/** Single-box fallback helper */
+export function drawPrize(prizes) {
+  const round = dealRound(prizes)
+  const id = 1 + Math.floor(Math.random() * SLOTS.length)
+  const pid = round[id]
+  return pid && pid !== 'empty' ? prizes.find((p) => p.id === pid) || null : null
 }
 
 // Camera / focus pose used while a box is being opened

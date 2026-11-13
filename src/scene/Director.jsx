@@ -47,6 +47,7 @@ export default function Director() {
       }
 
       const local = new THREE.Vector3(...FOCUS_BOX).sub(reg.home)
+      const hasPrize = st().fxRarity !== 'empty'
       fig.scale.setScalar(0.001)
       fig.position.set(0, 0.5 - 0.15, 0)
 
@@ -78,7 +79,7 @@ export default function Director() {
       tl.to(o.rotation, { z: 0, duration: 0.06, ease: 'power2.out' })
       if (fx.hold) tl.to({}, { duration: fx.hold }) // suspense…
 
-      // 4 ─ pop! the lid flips open and the prize rises out
+      // 4 ─ pop! the lid flips open and the prize rises out in the centre
       tl.addLabel('pop')
         .call(() => {
           st().setPhase('opening')
@@ -87,16 +88,35 @@ export default function Director() {
         .to(lid.rotation, { x: -2.15, duration: 0.3, ease: 'back.out(2)' }, 'pop')
         .to(o.scale, { x: FOCUS_SCALE, y: FOCUS_SCALE, z: FOCUS_SCALE, duration: 0.25, ease: 'back.out(3)' }, 'pop')
         .to(o.position, { y: local.y - 0.55, duration: 0.4, ease: 'power3.out' }, 'pop')
-        .to(fig.scale, { x: 1, y: 1, z: 1, duration: 0.6, ease: 'elastic.out(1,0.6)' }, 'pop+=0.05')
-        .to(fig.position, { y: 0.62, duration: 0.45, ease: 'back.out(1.6)' }, 'pop+=0.05')
-        .call(() => st().setPhase('revealed'), null, 'pop+=0.35')
+        .to(fig.scale, { x: 1, y: 1, z: 1, duration: 0.55, ease: 'elastic.out(1,0.6)' }, 'pop+=0.05')
+        .to(fig.position, { x: 0, y: 0.62, z: 0, duration: 0.45, ease: 'back.out(1.6)' }, 'pop+=0.05')
       if (fx.punch) {
         tl.to(camera.position, { z: FOCUS_CAM[2] - fx.punch, duration: 0.1, ease: 'power2.out' }, 'pop')
-          .to(camera.position, { z: FOCUS_CAM[2], duration: 0.7, ease: 'elastic.out(1,0.5)' }, 'pop+=0.1')
+          .to(camera.position, { z: FOCUS_CAM[2], duration: 0.6, ease: 'elastic.out(1,0.5)' }, 'pop+=0.1')
       }
       if (fx.camShake) {
         tl.to(camera.position, { x: FOCUS_CAM[0] + fx.camShake, duration: 0.04, repeat: 11, yoyo: true, ease: 'none' }, 'pop')
           .to(camera.position, { x: FOCUS_CAM[0], duration: 0.1 }, 'pop+=0.5')
+      }
+
+      // 5 ─ glide the opened box back to its shelf slot & pull camera back so it never blocks the 11-box peek reveal
+      tl.addLabel('dock', 'pop+=1.05')
+        .to(o.position, { x: 0, y: 0, z: hasPrize ? 0.24 : 0.05, duration: 0.65, ease: 'power3.inOut' }, 'dock')
+        .to(o.rotation, { x: 0, y: 0, z: 0, duration: 0.65, ease: 'power3.inOut' }, 'dock')
+        .to(o.scale, { x: 1, y: 1, z: 1, duration: 0.65, ease: 'power3.inOut' }, 'dock')
+        .to(lid.rotation, { x: hasPrize ? -1.95 : -0.65, duration: 0.55, ease: 'power2.inOut' }, 'dock')
+        .to(
+          fig.scale,
+          { x: hasPrize ? 0.72 : 0.001, y: hasPrize ? 0.72 : 0.001, z: hasPrize ? 0.72 : 0.001, duration: 0.55, ease: 'power2.inOut' },
+          'dock'
+        )
+        .to(fig.position, { x: 0, y: hasPrize ? -0.22 : 0.35, z: hasPrize ? 0.45 : 0, duration: 0.55, ease: 'power2.inOut' }, 'dock')
+        .call(() => st().setPhase('revealed'), null, 'dock+=0.3')
+      if (saved) {
+        tl.to(camera.position, { x: saved.cam.x, y: saved.cam.y, z: saved.cam.z, duration: 0.65, ease: 'power3.inOut' }, 'dock')
+        if (controls) {
+          tl.to(controls.target, { x: saved.target.x, y: saved.target.y, z: saved.target.z, duration: 0.65, ease: 'power3.inOut' }, 'dock')
+        }
       }
     }
 
@@ -113,20 +133,20 @@ export default function Director() {
       tl = gsap.timeline({
         onComplete: () => {
           fig.scale.setScalar(0.001)
+          fig.position.set(0, 0.35, 0)
           st().finishClose()
         },
       })
       tl.to(fig.scale, { x: 0.001, y: 0.001, z: 0.001, duration: 0.25, ease: 'back.in(2)' }, 0)
-        .to(fig.position, { y: 0.3, duration: 0.25, ease: 'power2.in' }, 0)
-        .to(lid.rotation, { x: 0, duration: 0.3, ease: 'power2.inOut' }, 0.1)
-        .to(o.rotation, { x: 0, y: 0, z: 0, duration: 0.55, ease: 'power3.inOut' }, 0.2)
-        .to(o.scale, { x: 1, y: 1, z: 1, duration: 0.55, ease: 'power3.inOut' }, 0.2)
-        .to(o.position, { x: 0, y: 0.12, z: 1.25, duration: 0.5, ease: 'power3.inOut' }, 0.2)
-        .to(o.position, { x: 0, y: 0, z: 0, duration: 0.25, ease: 'power2.inOut' }, 0.7)
+        .to(fig.position, { x: 0, y: 0.35, z: 0, duration: 0.25, ease: 'power2.in' }, 0)
+        .to(lid.rotation, { x: 0, duration: 0.3, ease: 'power2.inOut' }, 0.05)
+        .to(o.rotation, { x: 0, y: 0, z: 0, duration: 0.35, ease: 'power3.inOut' }, 0.05)
+        .to(o.scale, { x: 1, y: 1, z: 1, duration: 0.35, ease: 'power3.inOut' }, 0.05)
+        .to(o.position, { x: 0, y: 0, z: 0, duration: 0.35, ease: 'power2.inOut' }, 0.05)
       if (saved) {
-        tl.to(camera.position, { x: saved.cam.x, y: saved.cam.y, z: saved.cam.z, duration: 0.7, ease: 'power3.inOut' }, 0.2)
+        tl.to(camera.position, { x: saved.cam.x, y: saved.cam.y, z: saved.cam.z, duration: 0.35, ease: 'power3.inOut' }, 0)
         if (controls) {
-          tl.to(controls.target, { x: saved.target.x, y: saved.target.y, z: saved.target.z, duration: 0.7, ease: 'power3.inOut' }, 0.2)
+          tl.to(controls.target, { x: saved.target.x, y: saved.target.y, z: saved.target.z, duration: 0.35, ease: 'power3.inOut' }, 0)
         }
       }
     }

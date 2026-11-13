@@ -26,8 +26,6 @@ export default function EngBox({ slot }) {
   const { glow, shadow } = useShared()
   const fontsReady = useFontsReady()
 
-  const plate = useMemo(() => plateTexture(id, false), [id, fontsReady])
-
   const outer = useRef() // animated by GSAP (flight to the centre of the screen)
   const hoverG = useRef() // animated per-frame (hover wiggle / pop-out)
   const lid = useRef()
@@ -37,10 +35,15 @@ export default function EngBox({ slot }) {
   const shadowMat = useRef()
   const mats = useRef([])
   const hv = useRef(0)
+  const pk = useRef(0) // peek-reveal progress (0 → 1) for the 11 unpicked boxes while phase === 'revealed'
   const seed = useMemo(() => Math.random() * 100, [])
 
   const isSelected = useStore((s) => s.selected === id)
+  const isPeeking = useStore((s) => s.selected != null && s.selected !== id && (s.phase === 'revealed' || s.phase === 'returning'))
+  const isRevealedSelected = useStore((s) => s.selected === id && (s.phase === 'revealed' || s.phase === 'returning'))
   const prize = useStore((s) => prizeOfBox(s, id))
+
+  const plate = useMemo(() => plateTexture(id, isRevealedSelected), [id, isRevealedSelected, fontsReady])
 
   useLayoutEffect(() => {
     registry.set(id, { outer, lid, figure, home })
@@ -53,35 +56,68 @@ export default function EngBox({ slot }) {
     const target = s.hovered === id && idle ? 1 : 0
     hv.current += (target - hv.current) * Math.min(1, dt * 9)
     const h = hv.current
+
+    const peeking = s.selected != null && s.selected !== id && s.phase === 'revealed'
+    pk.current += ((peeking ? 1 : 0) - pk.current) * Math.min(1, dt * 7)
+    const p = pk.current
+    const boxPrize = prizeOfBox(s, id)
+    const boxRarity = boxPrize ? boxPrize.rarity || 'common' : 'empty'
     const t = state.clock.elapsedTime + seed
 
     const g = hoverG.current
     if (g) {
-      // gently wiggles + slides forward off the shelf
-      g.position.z = h * 0.3
+      // gently wiggles on hover, or slides slightly forward during peek-reveal if holding a prize
+      g.position.z = h * 0.3 + p * (boxPrize ? 0.24 : 0.05)
       g.position.y = h * 0.035 + Math.sin(t * 1.4) * 0.004
       g.rotation.z = Math.sin(t * 15) * 0.05 * h
       g.rotation.y = Math.sin(t * 9.5) * 0.07 * h
       g.rotation.x = -0.03 * h
     }
-    if (outline.current) outline.current.material.opacity = h * 0.95
-    // halo behind the box: idle glow, and a rarity-coloured aura while this box is being opened
+    if (outline.current) {
+      const selOutline = s.selected === id && s.phase === 'revealed' ? 0.95 : 0
+      const peekOutline = boxPrize ? p * 0.92 : 0
+      const activeColor = selOutline ? FX_COLOR[s.fxRarity] : peekOutline > h ? FX_COLOR[boxRarity] : '#ffc21a'
+      outline.current.material.color.set(activeColor)
+      outline.current.material.opacity = Math.max(h * 0.95, peekOutline, selOutline)
+    }
+    // halo behind the box: idle glow, rarity aura while opening, or peek-reveal aura on the shelf
     if (haloMat.current) {
       const fxOn = s.selected === id && (s.phase === 'shaking' || s.phase === 'opening' || s.phase === 'revealed')
-      const power = { empty: 0, common: 0.1, rare: 0.55, secret: 0.95 }[s.fxRarity] ?? 0
+      const power = { empty: 0, common: 0.35, rare: 0.7, secret: 1.0 }[s.fxRarity] ?? 0
       const pulse = s.phase === 'shaking' ? 0.7 + 0.3 * Math.sin(t * 24) : 1
-      haloMat.current.color.set(fxOn ? FX_COLOR[s.fxRarity] : '#3fd5ff')
-      haloMat.current.opacity = h * 0.7 + 0.05 + 0.04 * Math.sin(t * 2) + (fxOn ? power * pulse : 0)
+      const peekPower = boxPrize ? ({ common: 0.4, rare: 0.75, secret: 1.0 }[boxRarity] ?? 0.35) * p : 0
+      if (fxOn) {
+        haloMat.current.color.set(FX_COLOR[s.fxRarity])
+        haloMat.current.opacity = h * 0.7 + 0.05 + 0.04 * Math.sin(t * 2) + power * pulse
+      } else if (peekPower > 0.02) {
+        haloMat.current.color.set(FX_COLOR[boxRarity])
+        haloMat.current.opacity = 0.05 + peekPower
+      } else {
+        haloMat.current.color.set('#3fd5ff')
+        haloMat.current.opacity = h * 0.7 + 0.05 + 0.04 * Math.sin(t * 2)
+      }
     }
-    mats.current.forEach((m) => m && (m.emissiveIntensity = h * 0.28))
+    mats.current.forEach((m) => m && (m.emissiveIntensity = Math.max(h * 0.28, boxPrize ? p * 0.22 : 0)))
 
-    // lid: stays shut on the shelf; the Director controls it while this box is selected
-    if (lid.current && s.selected !== id) {
-      lid.current.rotation.x += (0 - lid.current.rotation.x) * Math.min(1, dt * 6)
+    // lid & prize for the 11 unpicked shelf boxes: crack open to reveal what was hiding inside this round
+    if (s.selected !== id) {
+      if (lid.current) {
+        const lidGoal = peeking ? (boxPrize ? -1.95 : -0.65) : 0
+        lid.current.rotation.x += (lidGoal - lid.current.rotation.x) * Math.min(1, dt * 8)
+      }
+      if (figure.current) {
+        const figGoal = peeking && boxPrize ? 0.72 : 0.001
+        const yGoal = peeking && boxPrize ? -0.22 : BOX.h / 2 - 0.15
+        const zGoal = peeking && boxPrize ? 0.45 : 0
+        const sc = figure.current.scale.x + (figGoal - figure.current.scale.x) * Math.min(1, dt * 8)
+        figure.current.scale.setScalar(sc)
+        figure.current.position.y += (yGoal - figure.current.position.y) * Math.min(1, dt * 8)
+        figure.current.position.z += (zGoal - figure.current.position.z) * Math.min(1, dt * 8)
+      }
     }
-    // shadow of the slot fades when the box has left the shelf
+    // shadow of the slot fades while the box is flying in the centre, returns once docked back on the shelf
     if (shadowMat.current) {
-      const away = s.selected === id
+      const away = s.selected === id && s.phase !== 'revealed'
       shadowMat.current.opacity += ((away ? 0.12 : 0.75) - shadowMat.current.opacity) * Math.min(1, dt * 6)
     }
   })
@@ -196,9 +232,9 @@ export default function EngBox({ slot }) {
             </mesh>
           </group>
 
-          {/* ── collectible figure (revealed by the Director) ── */}
+          {/* ── collectible figure (revealed by the Director, or peek-revealed on the shelf) ── */}
           <group ref={figure} position={[0, bh / 2 - 0.15, 0]} scale={0.001}>
-            {isSelected && prize && (
+            {(isSelected || isPeeking) && prize && (
               <Suspense fallback={null}>
                 <PrizeModel prize={prize} />
               </Suspense>
