@@ -1,32 +1,60 @@
 // ─────────────────────────────────────────────────────────────
-//  Layout constants – the cabinet is a FIXED 3 rows × 4 columns grid
+//  Fixed sizes (box, walls, shelves) – the grid itself is built by makeLayout()
 // ─────────────────────────────────────────────────────────────
-export const ROWS = 3
-export const COLS = 4
 
 // Box proportions come from the reference artwork (ENG CMU × POP MART blind box)
 export const BOX = { w: 0.95, h: 1.3, d: 0.72, lid: 0.05 }
 
 export const PITCH_X = 1.45 // distance between box centres (x)
+export const PITCH_Y = 1.8 // distance between shelves (y)
 export const DEPTH = 1.5 // cabinet depth
 export const WALL_T = 0.3 // side wall / roof thickness
 export const SHELF_T = 0.2 // shelf board thickness
-export const IW = COLS * PITCH_X // inner width (5.8)
-export const OUTER_W = IW + WALL_T * 2
 export const BASE_H = 0.7 // plinth height
-export const SHELF_TOP = [4.5, 2.7, 0.9] // top surface of shelf for row 0 (top) … row 2 (bottom)
-export const CEIL_Y = 6.3 // underside of roof
-export const TOP_Y = CEIL_Y + WALL_T
+export const BOTTOM_SHELF = 0.9 // top surface of the lowest shelf
 export const BOX_Z = 0.02
 
-export const SLOTS = Array.from({ length: ROWS * COLS }, (_, i) => ({
-  id: i + 1, // Box 01 … Box 12
-  row: Math.floor(i / COLS),
-  col: i % COLS,
-}))
+// how many boxes the admin may put in the cabinet
+export const MIN_BOXES = 2
+export const MAX_BOXES = 30
+export const MAX_COLS = 8
+export const DEFAULT_BOXES = 12
 
-export function slotPosition(row, col) {
-  return [(col - (COLS - 1) / 2) * PITCH_X, SHELF_TOP[row] + BOX.h / 2 + 0.004, BOX_Z]
+/** a balanced grid for `count` boxes: about 4:3 wide, rows filled as evenly as possible */
+export function autoCols(count) {
+  const n = Math.max(1, count)
+  const cols = Math.min(MAX_COLS, Math.ceil(Math.sqrt((n * 4) / 3)))
+  const rows = Math.ceil(n / cols)
+  return Math.ceil(n / rows)
+}
+
+/**
+ * Everything that depends on how many boxes are in the cabinet.
+ *   count = number of boxes      cols = boxes per shelf ('auto' → autoCols)
+ * Rows are filled from the top; a short last row (bottom shelf) is centred.
+ */
+export function makeLayout(count = DEFAULT_BOXES, colsWanted = 'auto') {
+  const n = Math.max(MIN_BOXES, Math.min(MAX_BOXES, Math.floor(Number(count) || DEFAULT_BOXES)))
+  const c = colsWanted === 'auto' || !colsWanted ? autoCols(n) : Math.floor(Number(colsWanted))
+  const cols = Math.max(1, Math.min(MAX_COLS, n, c))
+  const rows = Math.ceil(n / cols)
+
+  const IW = cols * PITCH_X // inner width
+  const OUTER_W = IW + WALL_T * 2
+  // row 0 is the top shelf … row (rows-1) the bottom one
+  const SHELF_TOP = Array.from({ length: rows }, (_, r) => BOTTOM_SHELF + (rows - 1 - r) * PITCH_Y)
+  const CEIL_Y = SHELF_TOP[0] + PITCH_Y // underside of roof
+  const TOP_Y = CEIL_Y + WALL_T
+
+  const slots = Array.from({ length: n }, (_, i) => {
+    const row = Math.floor(i / cols)
+    const col = i % cols
+    const inRow = row === rows - 1 ? n - row * cols : cols // boxes on this shelf
+    const x = (col - (inRow - 1) / 2) * PITCH_X
+    return { id: i + 1, row, col, pos: [x, SHELF_TOP[row] + BOX.h / 2 + 0.004, BOX_Z] }
+  })
+
+  return { count: n, cols, rows, auto: colsWanted === 'auto' || !colsWanted, IW, OUTER_W, SHELF_TOP, CEIL_Y, TOP_Y, slots }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -120,7 +148,7 @@ function pickWeighted(items) {
  *       • Common + Rare (2 boxes)
  *       • Common + Secret (2 boxes)
  */
-export function dealRound(prizes) {
+export function dealRound(prizes, slots) {
   const commons = prizes.filter((p) => p.left > 0 && p.rarity === 'common')
   const specials = prizes
     .filter((p) => live(p) && (p.rarity === 'rare' || p.rarity === 'secret'))
@@ -157,28 +185,20 @@ export function dealRound(prizes) {
     if (bonus) hits.push(bonus)
   }
 
-  const ids = SLOTS.map((s) => s.id)
+  const ids = slots.map((s) => s.id)
   for (let i = ids.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1))
     ;[ids[i], ids[j]] = [ids[j], ids[i]]
   }
 
   const results = {}
-  SLOTS.forEach((s) => {
+  slots.forEach((s) => {
     results[s.id] = 'empty'
   })
-  hits.slice(0, SLOTS.length).forEach((p, idx) => {
+  hits.slice(0, slots.length).forEach((p, idx) => {
     results[ids[idx]] = p.id
   })
   return results
-}
-
-/** Single-box fallback helper */
-export function drawPrize(prizes) {
-  const round = dealRound(prizes)
-  const id = 1 + Math.floor(Math.random() * SLOTS.length)
-  const pid = round[id]
-  return pid && pid !== 'empty' ? prizes.find((p) => p.id === pid) || null : null
 }
 
 // Camera / focus pose used while a box is being opened

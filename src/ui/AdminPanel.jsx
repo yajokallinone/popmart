@@ -1,5 +1,5 @@
-import { useRef } from 'react'
-import { RARITY } from '../data'
+import { useEffect, useRef, useState } from 'react'
+import { MAX_BOXES, MAX_COLS, MIN_BOXES, RARITY, autoCols } from '../data'
 import { useStore } from '../store'
 import { fileToDataURL } from '../utils'
 import { PrizeIcon } from './FigureIcon'
@@ -120,10 +120,64 @@ function Row({ p }) {
   )
 }
 
+/** how many boxes sit in the cabinet, and how many per shelf */
+function BoxCountSetting() {
+  const layout = useStore((s) => s.layout)
+  const setLayout = useStore((s) => s.setLayout)
+  const [draft, setDraft] = useState(String(layout.count))
+  useEffect(() => setDraft(String(layout.count)), [layout.count])
+
+  const colsValue = layout.auto ? 'auto' : String(layout.cols)
+  const apply = (count, cols = colsValue) => setLayout(count, cols)
+  const commitDraft = () => {
+    const n = Math.floor(Number(draft))
+    if (Number.isFinite(n) && n > 0) apply(n)
+    else setDraft(String(layout.count))
+  }
+  const step = (d) => apply(layout.count + d)
+  const btn =
+    'grid h-9 w-9 cursor-pointer place-items-center rounded-full bg-white text-lg font-bold text-maroon shadow transition hover:scale-105 disabled:cursor-not-allowed disabled:opacity-40'
+
+  return (
+    <div className="mx-5 mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl bg-white/70 px-4 py-3">
+      <div className="text-sm font-bold text-maroon">จำนวนกล่องในตู้</div>
+      <div className="flex items-center gap-2">
+        <button className={btn} onClick={() => step(-1)} disabled={layout.count <= MIN_BOXES} title="ลดกล่อง">−</button>
+        <input
+          type="number"
+          min={MIN_BOXES}
+          max={MAX_BOXES}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commitDraft}
+          onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+          className={`${input} w-20 text-center text-base font-bold`}
+        />
+        <button className={btn} onClick={() => step(1)} disabled={layout.count >= MAX_BOXES} title="เพิ่มกล่อง">＋</button>
+      </div>
+      <label className="flex items-center gap-2 text-sm font-semibold text-sky-700">
+        กล่องต่อชั้น
+        <select className={`${input} w-auto`} value={colsValue} onChange={(e) => apply(layout.count, e.target.value)}>
+          <option value="auto">อัตโนมัติ ({autoCols(layout.count)})</option>
+          {Array.from({ length: Math.min(MAX_COLS, layout.count) }, (_, i) => i + 1).map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+      </label>
+      <span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-bold text-sky-700">
+        = {layout.rows} ชั้น × {layout.cols} กล่อง
+        {layout.rows * layout.cols !== layout.count ? ` (ชั้นล่างสุด ${layout.count - (layout.rows - 1) * layout.cols} กล่อง)` : ''}
+      </span>
+      <span className="text-[11px] text-sky-700/70">ได้ {MIN_BOXES}–{MAX_BOXES} กล่อง · เปลี่ยนแล้วตู้จัดของรอบใหม่ทันที</span>
+    </div>
+  )
+}
+
 export default function AdminPanel() {
   const open = useStore((s) => s.adminOpen)
   const setAdmin = useStore((s) => s.setAdmin)
   const prizes = useStore((s) => s.prizes)
+  const boxCount = useStore((s) => s.layout.count)
   const add = useStore((s) => s.addPrize)
   const resetStock = useStore((s) => s.resetStock)
   const clearPrizes = useStore((s) => s.clearPrizes)
@@ -132,7 +186,6 @@ export default function AdminPanel() {
   if (!open) return null
   const left = prizes.reduce((a, p) => a + p.left, 0)
   const total = prizes.reduce((a, p) => a + p.total, 0)
-  const activeCount = prizes.filter((p) => p.left > 0 && p.chance > 0).length
 
   const onAdd = async (e) => {
     const files = [...(e.target.files || [])]
@@ -169,13 +222,12 @@ export default function AdminPanel() {
 
         <div className="flex flex-wrap gap-2 px-5 pb-3 text-xs font-bold">
           <span className="rounded-full bg-white px-3 py-1 text-maroon">รางวัลคงเหลือ {left}/{total} ชิ้น</span>
-          {activeCount > 12 && (
-            <span className="rounded-full bg-amber-200 px-3 py-1 text-amber-800">⚠ มีรางวัลพร้อมออก {activeCount} รายการ (ตู้มี 12 กล่อง — หากสุ่มติดพร้อมกันเกิน 12 ชิ้น จะจัดความสำคัญให้ระดับหายากก่อน)</span>
-          )}
           {total > 0 && left === 0 && (
             <span className="rounded-full bg-amber-200 px-3 py-1 text-amber-800">⚠ ของหมดแล้ว — เติมของเพื่อให้สุ่มได้อีก</span>
           )}
         </div>
+
+        <BoxCountSetting />
 
         <div className="hidden grid-cols-[64px_minmax(120px,1.6fr)_110px_84px_84px_96px_36px] gap-3 px-5 pb-1 text-[11px] font-bold uppercase tracking-wide text-sky-600 sm:grid">
           <span>รูป</span><span>ชื่อ</span><span>ระดับ</span>
@@ -189,7 +241,7 @@ export default function AdminPanel() {
           ))}
           {!prizes.length && <div className="py-8 text-center text-sky-600">ยังไม่มีรางวัล — กด “เพิ่มรางวัล”</div>}
           <div className="px-1 pt-1 text-[12px] leading-snug text-sky-700/80">
-            กติกาการสุ่มแต่ละรอบ: <b>Common</b> จะถูกใส่เข้าตู้ <b>การันตี 1 กล่องทุกรอบ</b> ส่วน <b>Rare</b> และ <b>Secret</b> จะสุ่มแถมเข้าตู้ตาม % ที่ตั้งไว้แต่ <b>จะไม่ออกพร้อมกันในรอบเดียว</b> (แต่ละรอบในตู้ 12 กล่องจึงมีโอกาสเป็น: <i>Common อย่างเดียว</i>, <i>Common + Rare</i>, หรือ <i>Common + Secret</i>)
+            กติกาการสุ่มแต่ละรอบ: <b>Common</b> จะถูกใส่เข้าตู้ <b>การันตี 1 กล่องทุกรอบ</b> ส่วน <b>Rare</b> และ <b>Secret</b> จะสุ่มแถมเข้าตู้ตาม % ที่ตั้งไว้แต่ <b>จะไม่ออกพร้อมกันในรอบเดียว</b> (แต่ละรอบในตู้ {boxCount} กล่องจึงมีโอกาสเป็น: <i>Common อย่างเดียว</i>, <i>Common + Rare</i>, หรือ <i>Common + Secret</i>)
           </div>
         </div>
 

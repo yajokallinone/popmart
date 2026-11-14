@@ -3,21 +3,26 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { ContactShadows, Environment, Lightformer, OrbitControls, Sparkles } from '@react-three/drei'
 import gsap from 'gsap'
 import * as THREE from 'three'
-import { FOCUS_BOX, FX_COLOR, TOP_Y } from '../data'
+import { FOCUS_BOX, FX_COLOR } from '../data'
 import { useStore } from '../store'
 import Cabinet from './Cabinet'
 import Confetti from './Confetti'
 import Director from './Director'
 import SideProps from './Props'
 
-const TARGET = new THREE.Vector3(0, 3.75, 0)
+/** the point the front view looks at: middle of cabinet + sign (3.75 for the 3-row cabinet) */
+const frontTarget = (L) => new THREE.Vector3(0, (L.TOP_Y + 1.35) / 2 - 0.22, 0)
 
-/** Where the camera sits for the straight-on front view: all 12 boxes + the sign + both machines in frame */
-function frontPose(camera, size) {
+/** half the width of everything in the scene: cabinet + machines + showcase (9.6 for the 4-wide cabinet) */
+export const sceneHalfW = (L) => L.OUTER_W / 2 + 6.4
+
+/** Where the camera sits for the straight-on front view: every box + the sign + both machines in frame */
+function frontPose(camera, size, L) {
+  const TARGET = frontTarget(L)
   const aspect = size.width / size.height
   const vfov = THREE.MathUtils.degToRad(camera.fov)
-  const halfH = (TOP_Y + 1.35) / 2 + 1.0
-  const halfW = 9.6
+  const halfH = (L.TOP_Y + 1.35) / 2 + 1.0
+  const halfW = sceneHalfW(L)
   const distH = halfH / Math.tan(vfov / 2)
   const distW = halfW / (Math.tan(vfov / 2) * aspect)
   const dist = Math.max(distH, distW)
@@ -34,6 +39,7 @@ function CameraRig() {
   const size = useThree((s) => s.size)
   const controls = useThree((s) => s.controls)
   const camMode = useStore((s) => s.camMode)
+  const L = useStore((s) => s.layout)
   const first = useRef(true)
 
   // initial placement + keeping the fit on resize (only while locked, so a free camera is never yanked)
@@ -41,24 +47,27 @@ function CameraRig() {
     if (useStore.getState().selected != null) return
     if (!first.current && useStore.getState().camMode !== 'locked') return
     first.current = false
-    camera.position.copy(frontPose(camera, size))
+    const TARGET = frontTarget(L)
+    camera.position.copy(frontPose(camera, size, L))
     camera.lookAt(TARGET)
     if (controls) {
       controls.target.copy(TARGET)
       controls.update()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [camera, controls, size.width, size.height])
 
-  // free → locked: smooth glide back to the front view
+  // free → locked, or the cabinet changed size: smooth glide to the (new) front view
   useLayoutEffect(() => {
     if (camMode !== 'locked' || !controls || useStore.getState().selected != null) return
-    const p = frontPose(camera, size)
+    const TARGET = frontTarget(L)
+    const p = frontPose(camera, size, L)
     const tw = gsap.timeline()
     tw.to(camera.position, { x: p.x, y: p.y, z: p.z, duration: 0.8, ease: 'power3.inOut' }, 0)
       .to(controls.target, { x: TARGET.x, y: TARGET.y, z: TARGET.z, duration: 0.8, ease: 'power3.inOut' }, 0)
     return () => tw.kill()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [camMode])
+  }, [camMode, L])
 
   return null
 }
@@ -78,7 +87,7 @@ function Controls() {
       dampingFactor={0.07}
       rotateSpeed={0.6}
       minDistance={9}
-      maxDistance={28}
+      maxDistance={45}
       minPolarAngle={1.0}
       maxPolarAngle={1.62}
       minAzimuthAngle={-1.1}
@@ -129,8 +138,10 @@ function Studio() {
 }
 
 function Floor() {
+  const L = useStore((s) => s.layout)
+  const k = Math.max(1, (sceneHalfW(L) + 0.3) / 9.9) // the round stage grows with a wide cabinet
   return (
-    <group>
+    <group scale={[k, 1, k]}>
       <mesh rotation-x={-Math.PI / 2} position={[0, -0.02, 0.2]} receiveShadow>
         <circleGeometry args={[9.9, 96]} />
         <meshStandardMaterial color="#1b2531" roughness={0.55} metalness={0.5} />

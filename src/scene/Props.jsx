@@ -357,11 +357,12 @@ export function Robot(props) {
 
 /** machines on both sides of the cabinet, turned slightly towards it; a big rotating display box on the right */
 export default function SideProps() {
+  const half = useStore((s) => s.layout.OUTER_W / 2) // 3.2 for the 4-wide cabinet
   return (
     <group>
-      <Engine position={[-5.1, 0, 0.9]} rotation={[0, 0.35, 0]} scale={1.15} />
-      <Robot position={[4.6, 0, 0.9]} rotation={[0, -0.35, 0]} scale={0.95} />
-      <Showcase position={[7.2, 0, 1.0]} />
+      <Engine position={[-(half + 1.9), 0, 0.9]} rotation={[0, 0.35, 0]} scale={1.15} />
+      <Robot position={[half + 1.4, 0, 0.9]} rotation={[0, -0.35, 0]} scale={0.95} />
+      <Showcase position={[half + 4.0, 0, 1.0]} />
     </group>
   )
 }

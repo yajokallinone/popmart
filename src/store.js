@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { DEFAULT_PRIZES, dealRound } from './data'
+import { DEFAULT_BOXES, DEFAULT_PRIZES, dealRound, makeLayout } from './data'
 
 /** outcome class of a prize: its rarity, or 'empty' when the box has nothing */
 export const outcomeOf = (prize) => (prize ? prize.rarity || 'common' : 'empty')
@@ -19,13 +19,30 @@ function loadPrizes() {
   return structuredClone(DEFAULT_PRIZES)
 }
 
+// cabinet size (number of boxes + boxes per shelf) is saved separately from the prizes
+const LAYOUT_KEY = 'cmu-open-house-layout-v1'
+function loadLayout() {
+  try {
+    const raw = localStorage.getItem(LAYOUT_KEY)
+    if (raw) {
+      const { count, cols } = JSON.parse(raw)
+      return makeLayout(count, cols)
+    }
+  } catch {
+    /* ignore */
+  }
+  return makeLayout(DEFAULT_BOXES, 'auto')
+}
+
 const int = (v) => Math.max(0, Math.floor(Number(v) || 0))
 const initialPrizes = loadPrizes()
+const initialLayout = loadLayout()
 
 // phase: idle → flying → shaking → opening → revealed → returning → idle
 export const useStore = create((set, get) => ({
   prizes: initialPrizes,
-  results: dealRound(initialPrizes), // boxId (1..12) → prizeId | 'empty' (pre-dealt before each round)
+  layout: initialLayout, // grid of boxes: { count, cols, rows, slots, … } – see makeLayout()
+  results: dealRound(initialPrizes, initialLayout.slots), // boxId (1..count) → prizeId | 'empty' (pre-dealt before each round)
   rounds: 0, // how many boxes have been opened since the last Restock
   fxRarity: 'common', // outcome of the box being opened: drives lights / camera / confetti
   hovered: null,
@@ -44,11 +61,11 @@ export const useStore = create((set, get) => ({
   setAdmin: (adminOpen) => set({ adminOpen }),
   setCamMode: (camMode) => set({ camMode }),
 
-  // ── picking a box: all 12 boxes already hold their pre-dealt contents for this round ──
+  // ── picking a box: every box already hold their pre-dealt contents for this round ──
   select: (id) => {
     const s = get()
     if (s.phase !== 'idle' || s.selected != null) return
-    const results = Object.keys(s.results).length ? s.results : dealRound(s.prizes)
+    const results = Object.keys(s.results).length ? s.results : dealRound(s.prizes, s.layout.slots)
     const pid = results[id]
     const p = pid && pid !== 'empty' ? s.prizes.find((x) => x.id === pid && x.left > 0) || null : null
     // only the prize inside the box the player actually picked loses 1 stock
@@ -80,18 +97,18 @@ export const useStore = create((set, get) => ({
     if (get().phase !== 'revealed') return
     set({ closeRequested: true, phase: 'returning' })
   },
-  // the box is back on the shelf → every box closes & a brand-new 12-box round is shuffled
+  // the box is back on the shelf → every box closes & a brand-new round is shuffled
   finishClose: () =>
     set((s) => ({
       selected: null,
       phase: 'idle',
       closeRequested: false,
-      results: dealRound(s.prizes),
+      results: dealRound(s.prizes, s.layout.slots),
     })),
 
   surprise: () => {
     if (get().phase !== 'idle') return
-    get().select(1 + Math.floor(Math.random() * 12))
+    get().select(1 + Math.floor(Math.random() * get().layout.count))
   },
 
   // ── prize pool editing (re-shuffles the current idle round whenever prizes change) ──
@@ -110,7 +127,7 @@ export const useStore = create((set, get) => ({
           chance: 10,
         },
       ]
-      return { prizes, ...(s.phase === 'idle' ? { results: dealRound(prizes) } : {}) }
+      return { prizes, ...(s.phase === 'idle' ? { results: dealRound(prizes, s.layout.slots) } : {}) }
     }),
   updatePrize: (id, patch) =>
     set((s) => {
@@ -125,31 +142,44 @@ export const useStore = create((set, get) => ({
         if ('chance' in patch) n.chance = Math.max(0, Math.min(100, Math.round((Number(patch.chance) || 0) * 100) / 100))
         return n
       })
-      return { prizes, ...(s.phase === 'idle' ? { results: dealRound(prizes) } : {}) }
+      return { prizes, ...(s.phase === 'idle' ? { results: dealRound(prizes, s.layout.slots) } : {}) }
     }),
   removePrize: (id) =>
     set((s) => {
       const prizes = s.prizes.filter((p) => p.id !== id)
-      return { prizes, ...(s.phase === 'idle' ? { results: dealRound(prizes) } : {}) }
+      return { prizes, ...(s.phase === 'idle' ? { results: dealRound(prizes, s.layout.slots) } : {}) }
     }),
   resetStock: () =>
     set((s) => {
       const prizes = s.prizes.map((p) => ({ ...p, left: p.total }))
-      return { prizes, ...(s.phase === 'idle' ? { results: dealRound(prizes) } : {}) }
+      return { prizes, ...(s.phase === 'idle' ? { results: dealRound(prizes, s.layout.slots) } : {}) }
     }),
   clearPrizes: () =>
     set((s) => {
       const prizes = structuredClone(DEFAULT_PRIZES)
-      return { prizes, ...(s.phase === 'idle' ? { results: dealRound(prizes) } : {}) }
+      return { prizes, ...(s.phase === 'idle' ? { results: dealRound(prizes, s.layout.slots) } : {}) }
     }),
 
-  // refill the stock of every prize, reset round counter, and shuffle a fresh 12-box round
+  // change how many boxes are in the cabinet (only between rounds) → rebuild the grid & deal a fresh round
+  setLayout: (count, cols = 'auto') => {
+    const s = get()
+    if (s.phase !== 'idle' || s.selected != null) return
+    const layout = makeLayout(count, cols)
+    try {
+      localStorage.setItem(LAYOUT_KEY, JSON.stringify({ count: layout.count, cols: layout.auto ? 'auto' : layout.cols }))
+    } catch {
+      /* ignore */
+    }
+    set({ layout, hovered: null, results: dealRound(s.prizes, layout.slots) })
+  },
+
+  // refill the stock of every prize, reset round counter, and shuffle a fresh round
   reset: () => {
     if (get().phase !== 'idle') return
     set((s) => {
       const prizes = s.prizes.map((p) => ({ ...p, left: p.total }))
       return {
-        results: dealRound(prizes),
+        results: dealRound(prizes, s.layout.slots),
         rounds: 0,
         hovered: null,
         prizes,

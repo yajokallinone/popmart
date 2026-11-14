@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react'
-import { FX_COLOR, RARITY, SLOTS, prizeOdds } from '../data'
+import { useEffect, useRef, useState } from 'react'
+import { FX_COLOR, RARITY, prizeOdds } from '../data'
 import { prizeOfBox, useStore } from '../store'
 import AdminPanel from './AdminPanel'
 import { PrizeIcon } from './FigureIcon'
@@ -117,95 +117,150 @@ function PrizePool() {
   )
 }
 
+/** "Picking box…" / "Shake shake…" / "Pop!" chip at the bottom while a box is being opened */
+function OpeningStatus() {
+  const phase = useStore((s) => s.phase)
+  const selected = useStore((s) => s.selected)
+  const status = {
+    flying: `Picking Box #${String(selected).padStart(2, '0')}…`,
+    shaking: 'Shake shake…',
+    opening: 'Pop!',
+  }[phase]
+  if (!selected || !status) return null
+  return (
+    <div className="pointer-events-none absolute inset-x-0 bottom-10 grid place-items-center">
+      <Chip className="animate-pop-in !px-6 !py-2.5 text-lg font-semibold text-maroon">{status}</Chip>
+    </div>
+  )
+}
+
+/**
+ * Result of the round: a compact side panel in the right column (under the buttons),
+ * so the cabinet and the peek-revealed boxes stay fully visible. It can be folded to one line.
+ */
 function Reveal() {
   const phase = useStore((s) => s.phase)
   const selected = useStore((s) => s.selected)
   const prize = useStore((s) => (s.selected ? prizeOfBox(s, s.selected) : null))
   const results = useStore((s) => s.results)
   const prizes = useStore((s) => s.prizes)
+  const slots = useStore((s) => s.layout.slots)
   const requestClose = useStore((s) => s.requestClose)
+  const [folded, setFolded] = useState(false)
 
-  const status = {
-    flying: `Picking Box #${String(selected).padStart(2, '0')}…`,
-    shaking: 'Shake shake…',
-    opening: 'Pop!',
-  }[phase]
+  // every new round starts unfolded
+  useEffect(() => setFolded(false), [selected])
 
-  if (selected && status) {
-    return (
-      <div className="pointer-events-none absolute inset-x-0 bottom-10 grid place-items-center">
-        <Chip className="animate-pop-in !px-6 !py-2.5 text-lg font-semibold text-maroon">{status}</Chip>
-      </div>
-    )
-  }
   if (phase !== 'revealed' && phase !== 'returning') return null
 
   const r = prize ? RARITY[prize.rarity] || RARITY.common : null
+  const accent = r ? r.color : '#8895a5'
   const boxLabel = `#${String(selected).padStart(2, '0')}`
-  const otherHits = SLOTS.filter((sl) => sl.id !== selected && results[sl.id] && results[sl.id] !== 'empty')
+  const otherHits = slots
+    .filter((sl) => sl.id !== selected && results[sl.id] && results[sl.id] !== 'empty')
     .map((sl) => ({ boxId: sl.id, prize: prizes.find((p) => p.id === results[sl.id]) }))
     .filter((x) => x.prize)
+  const fade = phase === 'returning' ? 'opacity-0' : 'opacity-100'
+
+  const againBtn = (cls = '') => (
+    <button
+      onClick={requestClose}
+      className={`cursor-pointer rounded-full bg-gradient-to-br from-sky-500 to-blue-600 font-bold text-white shadow-[0_6px_16px_rgba(30,120,220,0.45)] transition hover:scale-105 active:scale-95 ${cls}`}
+    >
+      เลือกใหม่
+    </button>
+  )
+
+  if (folded) {
+    return (
+      <div className={`animate-pop-in pointer-events-auto flex items-center gap-2 rounded-full border-2 border-white/85 bg-white/85 py-1.5 pl-3 pr-1.5 shadow-[0_8px_24px_rgba(30,90,160,0.3)] backdrop-blur-md transition-opacity duration-300 ${fade}`}>
+        <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: accent }} />
+        <span className="max-w-[170px] truncate text-sm font-bold text-maroon">
+          {boxLabel} · {prize ? prize.name : 'ไม่ได้รางวัล'}
+        </span>
+        <button
+          onClick={() => setFolded(false)}
+          title="แสดงผลเต็ม"
+          className="grid h-7 w-7 cursor-pointer place-items-center rounded-full bg-sky-100 text-xs font-bold text-sky-700 transition hover:bg-sky-200"
+        >
+          ▾
+        </button>
+        {againBtn('px-3.5 py-1.5 text-sm')}
+      </div>
+    )
+  }
 
   return (
-    <div className={`absolute inset-x-0 bottom-5 flex flex-col items-center gap-2 px-4 transition-opacity duration-300 ${phase === 'returning' ? 'opacity-0' : 'opacity-100'}`}>
-      {/* Peek summary of the other 11 boxes in this round */}
-      <div className="animate-pop-in pointer-events-auto flex max-w-[min(94vw,560px)] flex-wrap items-center justify-center gap-1.5 rounded-2xl border-2 border-white/85 bg-[#0f1d2e]/90 px-3.5 py-2 text-xs font-semibold text-white shadow-[0_10px_28px_rgba(5,15,30,0.45)] backdrop-blur-md">
-        <span className="rounded-full bg-emerald-400/20 px-2.5 py-0.5 font-bold text-emerald-300 ring-1 ring-emerald-400/50">
-          ✓ คุณเปิดกล่อง {boxLabel}
-        </span>
-        <span className="text-sky-300">· เฉลยกล่องอื่นที่มีรางวัล:</span>
-        {otherHits.length ? (
-          otherHits.map(({ boxId, prize: op }) => {
-            const or = RARITY[op.rarity] || RARITY.common
-            return (
-              <span
-                key={boxId}
-                className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold text-[#0b1624]"
-                style={{ background: or.color }}
-              >
-                กล่อง #{String(boxId).padStart(2, '0')} {'⚙'.repeat(or.stars)} {op.name}
-              </span>
-            )
-          })
-        ) : (
-          <span className="text-slate-300">ไม่มี (คุณเปิดเจอรางวัลชิ้นเดียวของรอบนี้แล้ว!)</span>
+    <div
+      className={`animate-pop-in pointer-events-auto w-[min(88vw,330px)] overflow-hidden rounded-3xl border-[3px] border-white bg-white/88 shadow-[0_16px_44px_rgba(5,25,60,0.4)] backdrop-blur-md transition-opacity duration-300 ${fade}`}
+    >
+      {/* header: picked box + fold */}
+      <div className="flex items-center gap-2 px-3.5 pt-3">
+        <span className="rounded-full bg-[#1c2735] px-2.5 py-0.5 text-xs font-bold text-[#ffc21a]">คุณเลือกกล่อง {boxLabel}</span>
+        {prize && (
+          <span className="rounded-full px-2.5 py-0.5 text-xs font-bold text-white" style={{ background: r.color }}>
+            {'⚙'.repeat(r.stars)} {r.label}
+          </span>
         )}
+        <div className="flex-1" />
+        <button
+          onClick={() => setFolded(true)}
+          title="ย่อเก็บ"
+          className="grid h-7 w-7 cursor-pointer place-items-center rounded-full bg-sky-100 text-xs font-bold text-sky-700 transition hover:bg-sky-200"
+        >
+          ▴
+        </button>
       </div>
 
-      <div className="animate-pop-in pointer-events-auto flex w-[min(94vw,460px)] items-center gap-4 rounded-[28px] border-[3px] border-white bg-white/85 p-4 shadow-[0_16px_50px_rgba(30,90,160,0.35)] backdrop-blur-md">
+      {/* the prize */}
+      <div className="flex items-center gap-3 px-3.5 py-2.5">
         <div
-          className="grid h-20 w-20 shrink-0 place-items-center rounded-2xl"
-          style={{ background: `${r ? r.color : '#999'}30`, outline: `3px solid ${r ? r.color : '#bbb'}`, outlineOffset: -3 }}
+          className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl"
+          style={{ background: `${accent}30`, outline: `3px solid ${accent}`, outlineOffset: -3 }}
         >
-          {prize ? <PrizeIcon prize={prize} size={62} /> : <span className="text-4xl">📭</span>}
+          {prize ? <PrizeIcon prize={prize} size={50} /> : <span className="text-3xl">📭</span>}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="mb-1 flex flex-wrap items-center gap-1.5">
-            <span className="rounded-full bg-[#1c2735] px-2.5 py-0.5 text-xs font-bold text-[#ffc21a]">
-              คุณเลือกกล่อง {boxLabel}
-            </span>
-            {prize && (
-              <span className="rounded-full px-2.5 py-0.5 text-xs font-bold text-white" style={{ background: r.color }}>
-                {'⚙'.repeat(r.stars)} {r.label}
-              </span>
-            )}
-          </div>
           {prize ? (
-            <div className="truncate text-2xl font-bold leading-tight text-maroon">{prize.name}</div>
+            <>
+              <div className="text-[12px] font-semibold text-sky-700/80">ยินดีด้วย! คุณได้รับ</div>
+              <div className="line-clamp-2 text-xl font-bold leading-tight text-maroon">{prize.name}</div>
+            </>
           ) : (
             <>
-              <div className="text-2xl font-bold leading-tight text-maroon">ไม่ได้รางวัล</div>
-              <div className="text-[13px] text-sky-700/80">ลองเลือกกล่องใหม่อีกครั้ง</div>
+              <div className="text-xl font-bold leading-tight text-maroon">ไม่ได้รางวัล</div>
+              <div className="text-[12px] text-sky-700/80">ลองเลือกกล่องใหม่อีกครั้ง</div>
             </>
           )}
         </div>
-        <button
-          onClick={requestClose}
-          className="shrink-0 cursor-pointer rounded-full bg-gradient-to-br from-sky-500 to-blue-600 px-5 py-3 text-base font-bold text-white shadow-[0_6px_16px_rgba(30,120,220,0.45)] transition hover:scale-105 active:scale-95"
-        >
-          เลือกใหม่
-        </button>
       </div>
+
+      {/* peek: which other boxes held something this round */}
+      <div className="mx-3.5 rounded-2xl bg-[#0f1d2e]/90 px-3 py-2">
+        <div className="mb-1 text-[11px] font-semibold text-sky-300">เฉลยกล่องอื่นที่มีรางวัล</div>
+        {otherHits.length ? (
+          <div className="flex max-h-[22vh] flex-col gap-1 overflow-y-auto">
+            {otherHits.map(({ boxId, prize: op }) => {
+              const or = RARITY[op.rarity] || RARITY.common
+              return (
+                <div key={boxId} className="flex items-center gap-2 text-[12px] font-semibold text-white">
+                  <span className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold text-[#0b1624]" style={{ background: or.color }}>
+                    #{String(boxId).padStart(2, '0')}
+                  </span>
+                  <span className="truncate">{op.name}</span>
+                  <span className="ml-auto shrink-0 text-[11px]" style={{ color: or.color }}>
+                    {'⚙'.repeat(or.stars)} {or.label}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="text-[12px] text-slate-300">ไม่มี — คุณเปิดเจอรางวัลชิ้นเดียวของรอบนี้แล้ว!</div>
+        )}
+      </div>
+
+      <div className="p-3.5">{againBtn('w-full py-2.5 text-base')}</div>
     </div>
   )
 }
@@ -317,10 +372,11 @@ export default function Overlay() {
             ↻ Restock
           </button>
         </div>
+        <Reveal />
       </div>
 
       <Hint />
-      <Reveal />
+      <OpeningStatus />
       <Tooltip />
       <AdminPanel />
       <RarityBanner />

@@ -1,7 +1,7 @@
 import { Suspense, useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import { BOX, FX_COLOR, SHELF_TOP, SHELF_T, DEPTH, slotPosition } from '../data'
+import { BOX, FX_COLOR, SHELF_T, DEPTH } from '../data'
 import { prizeOfBox, useStore } from '../store'
 import { registry } from './registry'
 import PrizeModel from './PrizeModel'
@@ -19,9 +19,9 @@ function useShared() {
 const TRIM = '#e0a400' // yellow trim on the lid edge
 const BODY_DARK = '#1d2530'
 
-export default function EngBox({ slot }) {
-  const { id, row, col } = slot
-  const home = useMemo(() => new THREE.Vector3(...slotPosition(row, col)), [row, col])
+export default function EngBox({ slot, shelfTop }) {
+  const { id, pos } = slot
+  const home = useMemo(() => new THREE.Vector3(...pos), [pos])
   const tex = useBoxTextures()
   const { glow, shadow } = useShared()
   const fontsReady = useFontsReady()
@@ -35,7 +35,7 @@ export default function EngBox({ slot }) {
   const shadowMat = useRef()
   const mats = useRef([])
   const hv = useRef(0)
-  const pk = useRef(0) // peek-reveal progress (0 → 1) for the 11 unpicked boxes while phase === 'revealed'
+  const pk = useRef(0) // peek-reveal progress (0 → 1) for the unpicked boxes while phase === 'revealed'
   const seed = useMemo(() => Math.random() * 100, [])
 
   const isSelected = useStore((s) => s.selected === id)
@@ -99,7 +99,7 @@ export default function EngBox({ slot }) {
     }
     mats.current.forEach((m) => m && (m.emissiveIntensity = Math.max(h * 0.28, boxPrize ? p * 0.22 : 0)))
 
-    // lid & prize for the 11 unpicked shelf boxes: crack open to reveal what was hiding inside this round
+    // lid & prize for the unpicked shelf boxes: crack open to reveal what was hiding inside this round
     if (s.selected !== id) {
       if (lid.current) {
         const lidGoal = peeking ? (boxPrize ? -1.95 : -0.65) : 0
@@ -140,7 +140,7 @@ export default function EngBox({ slot }) {
   }
 
   const { w, h: bh, d, lid: lt } = BOX
-  const plateY = SHELF_TOP[row] - SHELF_T / 2 - home.y
+  const plateY = shelfTop - SHELF_T / 2 - home.y
   const plateZ = (DEPTH - 0.06) / 2 + 0.004 - home.z
 
   const face = (i, map, color = '#ffffff') => (

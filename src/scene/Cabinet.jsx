@@ -2,9 +2,7 @@ import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { RoundedBox, useTexture } from '@react-three/drei'
 import * as THREE from 'three'
-import {
-  BASE_H, CEIL_Y, DEPTH, IW, OUTER_W, SHELF_T, SHELF_TOP, SLOTS, TOP_Y, WALL_T,
-} from '../data'
+import { BASE_H, DEPTH, SHELF_T, WALL_T } from '../data'
 import { useStore } from '../store'
 import EngBox from './EngBox'
 import { puffy, gearShape } from './shapes'
@@ -32,8 +30,8 @@ function Toy({ color, rough = 0.38, coat = 0.35, metal = 0.75 }) {
   )
 }
 
-const ROW_TINT = ['#3a4859', '#34414f', '#3a4859'] // shelf front colours per row
-const ROW_LED = [CYAN, YELLOW, CYAN]
+const ROW_TINT = ['#3a4859', '#34414f'] // shelf colours, alternating per row
+const ROW_LED = [CYAN, YELLOW]
 
 function Puffy({ geometry, color, position, rotation, scale = 1, emissive = 0 }) {
   return (
@@ -82,28 +80,32 @@ function Bolt({ position, r = 0.07 }) {
   )
 }
 
-function Decorations() {
+function Decorations({ L, signW }) {
+  const { OUTER_W, IW, CEIL_Y, TOP_Y } = L
   const gear = useMemo(() => puffy(gearShape(0.36, 8, 0.28), 0.1, 0.04), [])
   const gear10 = useMemo(() => puffy(gearShape(0.36, 10, 0.3), 0.1, 0.04), [])
   const sx = OUTER_W / 2 + 0.25
   const wallX = IW / 2 + WALL_T / 2
-  const wallY = [1.3, 2.3, 3.3, 4.3, 5.3, 6.1]
+  const wallY = []
+  for (let y = BASE_H + 0.6; y < CEIL_Y; y += 1) wallY.push(+y.toFixed(2))
   const rx = (OUTER_W + 0.3) / 2 - 0.2
+  const hy = (y) => BASE_H + ((y - BASE_H) / (6.3 - BASE_H)) * (CEIL_Y - BASE_H) // heights designed for the 3-row cabinet
+  const gx = signW / 2 + 0.7 // gears sit just outside the sign
   return (
     <group>
       {/* gears turning around the sign */}
-      <SpinGear geometry={gear} color={YELLOW} position={[-2.65, TOP_Y + 0.75, 0.2]} scale={1.25} speed={0.5} emissive={0.3} />
-      <SpinGear geometry={gear10} color={SILVER} position={[-3.45, TOP_Y + 0.25, 0.1]} scale={0.7} speed={-0.8} emissive={0.1} />
-      <SpinGear geometry={gear10} color={YELLOW} position={[2.65, TOP_Y + 0.8, 0.2]} scale={1.05} speed={-0.55} emissive={0.3} />
-      <SpinGear geometry={gear} color={CYAN} position={[3.4, TOP_Y + 0.3, 0.1]} scale={0.75} speed={0.9} emissive={0.35} />
+      <SpinGear geometry={gear} color={YELLOW} position={[-gx, TOP_Y + 0.75, 0.2]} scale={1.25} speed={0.5} emissive={0.3} />
+      <SpinGear geometry={gear10} color={SILVER} position={[-gx - 0.8, TOP_Y + 0.25, 0.1]} scale={0.7} speed={-0.8} emissive={0.1} />
+      <SpinGear geometry={gear10} color={YELLOW} position={[gx, TOP_Y + 0.8, 0.2]} scale={1.05} speed={-0.55} emissive={0.3} />
+      <SpinGear geometry={gear} color={CYAN} position={[gx + 0.75, TOP_Y + 0.3, 0.1]} scale={0.75} speed={0.9} emissive={0.35} />
       {/* gears on the outer side walls */}
-      <SpinGear geometry={gear10} color={SILVER} position={[-sx + 0.1, 5.3, 0.1]} rotation={[0, -0.5, 0]} scale={1.2} speed={0.35} emissive={0.08} />
-      <SpinGear geometry={gear} color={YELLOW} position={[sx - 0.1, 3.6, 0.1]} rotation={[0, 0.5, 0]} scale={0.95} speed={-0.4} emissive={0.2} />
-      <SpinGear geometry={gear} color={CYAN} position={[-sx + 0.1, 2.2, 0.1]} rotation={[0, -0.5, 0]} scale={0.8} speed={-0.6} emissive={0.25} />
-      <SpinGear geometry={gear10} color={SILVER} position={[sx - 0.1, 5.4, 0.1]} rotation={[0, 0.5, 0]} scale={1.1} speed={0.3} emissive={0.08} />
+      <SpinGear geometry={gear10} color={SILVER} position={[-sx + 0.1, hy(5.3), 0.1]} rotation={[0, -0.5, 0]} scale={1.2} speed={0.35} emissive={0.08} />
+      <SpinGear geometry={gear} color={YELLOW} position={[sx - 0.1, hy(3.6), 0.1]} rotation={[0, 0.5, 0]} scale={0.95} speed={-0.4} emissive={0.2} />
+      <SpinGear geometry={gear} color={CYAN} position={[-sx + 0.1, hy(2.2), 0.1]} rotation={[0, -0.5, 0]} scale={0.8} speed={-0.6} emissive={0.25} />
+      <SpinGear geometry={gear10} color={SILVER} position={[sx - 0.1, hy(5.4), 0.1]} rotation={[0, 0.5, 0]} scale={1.1} speed={0.3} emissive={0.08} />
       {/* antennas on the roof corners */}
       {[-1, 1].map((s) => (
-        <group key={s} position={[s * 2.7, TOP_Y + 0.02, -0.25]}>
+        <group key={s} position={[s * (OUTER_W / 2 - 0.5), TOP_Y + 0.02, -0.25]}>
           <mesh position={[0, 0.3, 0]} castShadow>
             <cylinderGeometry args={[0.07, 0.09, 0.6, 12]} />
             <Toy color={SILVER} rough={0.3} />
@@ -145,7 +147,7 @@ function LogoBadge({ x }) {
   )
 }
 
-function Sign() {
+function Sign({ y, scale }) {
   const ready = useFontsReady()
   const map = useMemo(() => signTexture(), [ready])
   const glow = useRef()
@@ -156,7 +158,7 @@ function Sign() {
     if (glow.current) glow.current.intensity = 5 + Math.sin(t * 2.2) * 1.2
   })
   return (
-    <group position={[0, TOP_Y + 0.62, 0.05]}>
+    <group position={[0, y + 0.62 * scale, 0.05]} scale={scale}>
       {/* sign casing */}
       <RoundedBox args={[3.9, 1.1, 0.4]} radius={0.1} smoothness={4} position={[0, 0, -0.04]}>
         <meshPhysicalMaterial color="#10151c" emissive={CYAN} emissiveIntensity={0.35} metalness={0.6} roughness={0.35} clearcoat={0.6} />
@@ -177,7 +179,8 @@ function Sign() {
   )
 }
 
-function Glass() {
+function Glass({ L }) {
+  const { IW, CEIL_Y } = L
   const shine = useMemo(() => shineTexture(), [])
   const glassMat = useRef()
   const shineMat = useRef()
@@ -224,22 +227,24 @@ function Glass() {
 }
 
 export default function Cabinet() {
+  const L = useStore((s) => s.layout)
+  const { IW, OUTER_W, SHELF_TOP, CEIL_Y, TOP_Y, slots } = L
   const back = useMemo(() => {
     const t = backWallTexture()
     t.repeat.set(IW / 3.2, (CEIL_Y - BASE_H) / 3.2)
     return t
-  }, [])
+  }, [IW, CEIL_Y])
+  // the sign / plinth plaque shrink on a narrow cabinet so they never overhang it too much
+  const signScale = Math.min(1, (OUTER_W + 1.2) / 3.9)
+  const plaqueScale = Math.min(1, (OUTER_W - 0.2) / 4.2)
+  const showBadges = OUTER_W >= 5.4
   const wash = useMemo(() => washTexture(), [])
   const ready = useFontsReady()
   const plaque = useMemo(() => plaqueTexture(), [ready])
 
   const shelfD = DEPTH - 0.06
   // under-roof / under-shelf LED strips: [y, rowIndexLit]
-  const leds = [
-    { y: CEIL_Y - 0.02, row: 0 },
-    { y: SHELF_TOP[0] - SHELF_T - 0.02, row: 1 },
-    { y: SHELF_TOP[1] - SHELF_T - 0.02, row: 2 },
-  ]
+  const leds = SHELF_TOP.map((_, r) => ({ y: (r === 0 ? CEIL_Y : SHELF_TOP[r - 1] - SHELF_T) - 0.02, row: r }))
 
   return (
     <group>
@@ -247,7 +252,7 @@ export default function Cabinet() {
       <RoundedBox args={[OUTER_W + 0.3, BASE_H, DEPTH + 0.3]} radius={0.06} smoothness={4} position={[0, BASE_H / 2, 0.04]}>
         <Toy color={GUNMETAL} />
       </RoundedBox>
-      <mesh position={[0, BASE_H / 2, DEPTH / 2 + 0.2]} raycast={() => null}>
+      <mesh position={[0, BASE_H / 2, DEPTH / 2 + 0.2]} scale={plaqueScale} raycast={() => null}>
         <planeGeometry args={[4.2, 0.4]} />
         <meshBasicMaterial map={plaque} transparent toneMapped={false} />
       </mesh>
@@ -271,16 +276,16 @@ export default function Cabinet() {
         <meshStandardMaterial map={back} roughness={0.8} />
       </mesh>
 
-      {/* the three shelves */}
+      {/* one shelf per row */}
       {SHELF_TOP.map((top, r) => (
         <group key={r}>
           <RoundedBox args={[IW + 0.02, SHELF_T, shelfD]} radius={0.06} smoothness={4} position={[0, top - SHELF_T / 2, -0.03]}>
-            <Toy color={ROW_TINT[r]} rough={0.4} />
+            <Toy color={ROW_TINT[r % 2]} rough={0.4} />
           </RoundedBox>
           {/* LED edge on the shelf top lip */}
           <mesh position={[0, top + 0.012, shelfD / 2 - 0.09]} raycast={() => null}>
             <boxGeometry args={[IW - 0.3, 0.02, 0.03]} />
-            <meshBasicMaterial color={ROW_LED[r]} toneMapped={false} />
+            <meshBasicMaterial color={ROW_LED[r % 2]} toneMapped={false} />
           </mesh>
         </group>
       ))}
@@ -301,15 +306,19 @@ export default function Cabinet() {
         </group>
       ))}
 
-      <LogoBadge x={-2.75} />
-      <LogoBadge x={2.75} />
-      <Glass />
-      <Decorations />
-      <Sign />
+      {showBadges && (
+        <>
+          <LogoBadge x={-(OUTER_W / 2 - 0.45)} />
+          <LogoBadge x={OUTER_W / 2 - 0.45} />
+        </>
+      )}
+      <Glass L={L} />
+      <Decorations L={L} signW={3.9 * signScale} />
+      <Sign y={TOP_Y} scale={signScale} />
 
-      {/* exactly 12 boxes in a fixed 3 × 4 grid */}
-      {SLOTS.map((slot) => (
-        <EngBox key={slot.id} slot={slot} />
+      {/* the boxes – grid size set in the admin panel (see makeLayout) */}
+      {slots.map((slot) => (
+        <EngBox key={`${L.count}-${L.cols}-${slot.id}`} slot={slot} shelfTop={SHELF_TOP[slot.row]} />
       ))}
     </group>
   )
